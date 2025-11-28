@@ -14,6 +14,7 @@ class GitGraphView {
 	private avatars: AvatarImageCollection = {};
 	private currentBranches: string[] | null = null;
 	private currentAuthors: string[] | null = null;
+	private currentTags: string[] | null = null;
 
 	private currentRepo!: string;
 	private currentRepoLoading: boolean = true;
@@ -48,6 +49,7 @@ class GitGraphView {
 	private readonly repoDropdown: Dropdown;
 	private readonly branchDropdown: Dropdown;
 	private readonly authorDropdown: Dropdown;
+	private readonly tagDropdown: Dropdown;
 
 	private readonly viewElem: HTMLElement;
 	private readonly controlsElem: HTMLElement;
@@ -231,6 +233,7 @@ class GitGraphView {
 		this.gitTags = [];
 		this.currentBranches = null;
 		this.currentAuthors = null;
+		this.currentTags = null;
 		this.renderFetchButton();
 		this.closeCommitDetails(false);
 		this.settingsWidget.close();
@@ -572,6 +575,14 @@ class GitGraphView {
 				const author = this!.gitConfig!.authors[i];
 				options.push({ name: author.name, value: author.name });
 			}
+		}
+		return options;
+	}
+	public getTagOptions(): ReadonlyArray<DialogSelectInputOption> {
+		const options: DialogSelectInputOption[] = [];
+		options.push({ name: 'All', value: SHOW_ALL_BRANCHES });
+		for (let i = 0; i < this.gitTags.length; i++) {
+			options.push({ name: this.gitTags[i], value: this.gitTags[i] });
 		}
 		return options;
 	}

@@ -471,7 +471,7 @@ export class DataSource extends Disposable {
 	 * @returns The comparison details.
 	 */
 	public getCommitComparison(repo: string, fromHash: string, toHash: string): Promise<GitCommitComparisonData> {
-		return Promise.all<DiffNameStatusRecord[], DiffNumStatRecord[], GitStatusFiles | null>([
+		return Promise.all([
 			this.getDiffNameStatus(repo, fromHash, toHash === UNCOMMITTED ? '' : toHash),
 			this.getDiffNumStat(repo, fromHash, toHash === UNCOMMITTED ? '' : toHash),
 			toHash === UNCOMMITTED ? this.getStatus(repo) : Promise.resolve(null)
@@ -587,7 +587,7 @@ export class DataSource extends Disposable {
 	 */
 	public getSubmodules(repo: string) {
 		return new Promise<string[]>(resolve => {
-			fs.readFile(path.join(repo, '.gitmodules'), { encoding: 'utf8' }, async (err, data) => {
+			fs.readFile(path.join(repo, '.gitmodules'), { encoding: 'utf8' }, async (err: NodeJS.ErrnoException | null, data: string) => {
 				let submodules: string[] = [];
 				if (!err) {
 					let lines = data.split(EOL_REGEX), inSubmoduleSection = false, match;
@@ -1726,8 +1726,8 @@ export class DataSource extends Disposable {
 	private getTagSignature(repo: string, ref: string): Promise<GitSignature> {
 		return this._spawnGit(['verify-tag', '--raw', ref], repo, (stdout, stderr) => stderr || stdout.toString(), true).then((output) => {
 			const records = output.split(EOL_REGEX)
-				.filter((line) => line.startsWith('[GNUPG:] '))
-				.map((line) => line.split(' '));
+				.filter((line: string) => line.startsWith('[GNUPG:] '))
+				.map((line: string) => line.split(' '));
 
 			let signature: Writeable<GitSignature> | null = null, trustLevel: string | null = null, parsingDetails: GpgStatusCodeParsingDetails | undefined;
 			for (let i = 0; i < records.length; i++) {

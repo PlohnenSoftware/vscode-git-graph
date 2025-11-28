@@ -870,14 +870,14 @@ class GitGraphView {
 
 			let splitMessage = commit.message.split('\n\n');
 
-			if(splitMessage.length > 1) {
+			if (splitMessage.length > 1) {
 				subject = splitMessage[0];
 				splitMessage.shift();
 				body = splitMessage.join('\n\n');
 			}
 
 			let message = '<span class="text">' + textFormatter.format(subject) + '</span>';
-			if(body !== '') {
+			if (body !== '') {
 				message += '<span class="text commitbody">' + textFormatter.format(body) + '</span>';
 			}
 			let date = formatShortDate(commit.date);
@@ -1625,7 +1625,7 @@ class GitGraphView {
 				mostRecentTagsIndex = i;
 			}
 		}
-		const mostRecentTags = mostRecentTagsIndex > -1 ? this.commits[mostRecentTagsIndex].tags.map((tag) => '"' + tag.name + '"') : [];
+		const mostRecentTags = mostRecentTagsIndex > -1 ? this.commits[mostRecentTagsIndex].tags.map((tag: GG.GitCommitTag) => '"' + tag.name + '"') : [];
 
 		const inputs: DialogInput[] = [
 			{ type: DialogInputType.TextRef, name: 'Name', default: initialName, info: mostRecentTags.length > 0 ? 'The most recent tag' + (mostRecentTags.length > 1 ? 's' : '') + ' in the loaded commits ' + (mostRecentTags.length > 1 ? 'are' : 'is') + ' ' + formatCommaSeparatedList(mostRecentTags) + '.' : undefined },
@@ -2073,7 +2073,7 @@ class GitGraphView {
 	}
 
 	private observeViewScroll() {
-		let active = this.viewElem.scrollTop > 0, timeout: NodeJS.Timer | null = null;
+		let active = this.viewElem.scrollTop > 0, timeout: number | null = null;
 		this.viewElem.addEventListener('scroll', () => {
 			const scrollTop = this.viewElem.scrollTop;
 			if (active !== scrollTop > 0) {
@@ -2627,7 +2627,7 @@ class GitGraphView {
 					});
 					const commitDetails = expandedCommit.commitDetails!;
 					const parents = commitDetails.parents.length > 0
-						? commitDetails.parents.map((parent) => {
+						? commitDetails.parents.map((parent: string) => {
 							const escapedParent = escapeHtml(parent);
 							return typeof this.commitLookup[parent] === 'number'
 								? '<span class="' + CLASS_INTERNAL_URL + '" data-type="commit" data-value="' + escapedParent + '" tabindex="-1">' + escapedParent + '</span>'
@@ -3699,16 +3699,17 @@ function generateFileListHtml(folder: FileTreeFolder, gitFiles: ReadonlyArray<GG
 function generateFileTreeLeafHtml(name: string, leaf: FileTreeLeaf, gitFiles: ReadonlyArray<GG.GitFileChange>, lastViewedFile: string | null, fileContextMenuOpen: number, isUncommitted: boolean) {
 	let encodedName = encodeURIComponent(name), escapedName = escapeHtml(name);
 	if (leaf.type === 'file') {
-		const fileTreeFile = gitFiles[leaf.index];
+		const fileTreeFile: GG.GitFileChange = gitFiles[leaf.index];
+		const type = fileTreeFile.type;
 		const textFile = fileTreeFile.additions !== null && fileTreeFile.deletions !== null;
-		const diffPossible = fileTreeFile.type === GG.GitFileStatus.Untracked || textFile;
-		const changeTypeMessage = GIT_FILE_CHANGE_TYPES[fileTreeFile.type] + (fileTreeFile.type === GG.GitFileStatus.Renamed ? ' (' + escapeHtml(fileTreeFile.oldFilePath) + ' → ' + escapeHtml(fileTreeFile.newFilePath) + ')' : '');
-		return '<li data-pathseg="' + encodedName + '"><span class="fileTreeFileRecord' + (leaf.index === fileContextMenuOpen ? ' ' + CLASS_CONTEXT_MENU_ACTIVE : '') + '" data-index="' + leaf.index + '"><span class="fileTreeFile' + (diffPossible ? ' gitDiffPossible' : '') + (leaf.reviewed ? '' : ' ' + CLASS_PENDING_REVIEW) + '" title="' + (diffPossible ? 'Click to View Diff' : 'Unable to View Diff' + (fileTreeFile.type !== GG.GitFileStatus.Deleted ? ' (this is a binary file)' : '')) + ' • ' + changeTypeMessage + '"><span class="fileTreeFileIcon">' + SVG_ICONS.file + '</span><span class="gitFileName ' + fileTreeFile.type + '">' + escapedName + '</span></span>' +
-			(initialState.config.enhancedAccessibility ? '<span class="fileTreeFileType" title="' + changeTypeMessage + '">' + fileTreeFile.type + '</span>' : '') +
-			(fileTreeFile.type !== GG.GitFileStatus.Added && fileTreeFile.type !== GG.GitFileStatus.Untracked && fileTreeFile.type !== GG.GitFileStatus.Deleted && textFile ? '<span class="fileTreeFileAddDel">(<span class="fileTreeFileAdd" title="' + fileTreeFile.additions + ' addition' + (fileTreeFile.additions !== 1 ? 's' : '') + '">+' + fileTreeFile.additions + '</span>|<span class="fileTreeFileDel" title="' + fileTreeFile.deletions + ' deletion' + (fileTreeFile.deletions !== 1 ? 's' : '') + '">-' + fileTreeFile.deletions + '</span>)</span>' : '') +
+		const diffPossible = type === GG.GitFileStatus.Untracked || textFile;
+		const changeTypeMessage = GIT_FILE_CHANGE_TYPES[type] + (type === GG.GitFileStatus.Renamed ? ' (' + escapeHtml(fileTreeFile.oldFilePath) + ' → ' + escapeHtml(fileTreeFile.newFilePath) + ')' : '');
+		return '<li data-pathseg="' + encodedName + '"><span class="fileTreeFileRecord' + (leaf.index === fileContextMenuOpen ? ' ' + CLASS_CONTEXT_MENU_ACTIVE : '') + '" data-index="' + leaf.index + '"><span class="fileTreeFile' + (diffPossible ? ' gitDiffPossible' : '') + (leaf.reviewed ? '' : ' ' + CLASS_PENDING_REVIEW) + '" title="' + (diffPossible ? 'Click to View Diff' : 'Unable to View Diff' + (type !== GG.GitFileStatus.Deleted ? ' (this is a binary file)' : '')) + ' • ' + changeTypeMessage + '"><span class="fileTreeFileIcon">' + SVG_ICONS.file + '</span><span class="gitFileName ' + type + '">' + escapedName + '</span></span>' +
+			(initialState.config.enhancedAccessibility ? '<span class="fileTreeFileType" title="' + changeTypeMessage + '">' + type + '</span>' : '') +
+			(type !== GG.GitFileStatus.Added && type !== GG.GitFileStatus.Untracked && type !== GG.GitFileStatus.Deleted && textFile ? '<span class="fileTreeFileAddDel">(<span class="fileTreeFileAdd" title="' + fileTreeFile.additions + ' addition' + (fileTreeFile.additions !== 1 ? 's' : '') + '">+' + fileTreeFile.additions + '</span>|<span class="fileTreeFileDel" title="' + fileTreeFile.deletions + ' deletion' + (fileTreeFile.deletions !== 1 ? 's' : '') + '">-' + fileTreeFile.deletions + '</span>)</span>' : '') +
 			(fileTreeFile.newFilePath === lastViewedFile ? '<span id="cdvLastFileViewed" title="Last File Viewed">' + SVG_ICONS.eyeOpen + '</span>' : '') +
 			'<span class="copyGitFile fileTreeFileAction" title="Copy Absolute File Path to Clipboard">' + SVG_ICONS.copy + '</span>' +
-			(fileTreeFile.type !== GG.GitFileStatus.Deleted
+			(type !== GG.GitFileStatus.Deleted
 				? (diffPossible && !isUncommitted ? '<span class="viewGitFileAtRevision fileTreeFileAction" title="View File at this Revision">' + SVG_ICONS.commit + '</span>' : '') +
 				'<span class="openGitFile fileTreeFileAction" title="Open File">' + SVG_ICONS.openFile + '</span>'
 				: ''
@@ -4064,12 +4065,13 @@ function findCommitElemWithId(elems: HTMLCollectionOf<HTMLElement>, id: number |
 }
 
 function generateSignatureHtml(signature: GG.GitSignature) {
-	return '<span class="signatureInfo ' + signature.status + '" title="' + GIT_SIGNATURE_STATUS_DESCRIPTIONS[signature.status] + ':'
+	const status: GG.GitSignatureStatus = signature.status;
+	return '<span class="signatureInfo ' + status + '" title="' + GIT_SIGNATURE_STATUS_DESCRIPTIONS[status] + ':'
 		+ ' Signed by ' + escapeHtml(signature.signer !== '' ? signature.signer : '<Unknown>')
 		+ ' (GPG Key Id: ' + escapeHtml(signature.key !== '' ? signature.key : '<Unknown>') + ')">'
-		+ (signature.status === GG.GitSignatureStatus.GoodAndValid
+		+ (status === GG.GitSignatureStatus.GoodAndValid
 			? SVG_ICONS.passed
-			: signature.status === GG.GitSignatureStatus.Bad
+			: status === GG.GitSignatureStatus.Bad
 				? SVG_ICONS.failed
 				: SVG_ICONS.inconclusive)
 		+ '</span>';

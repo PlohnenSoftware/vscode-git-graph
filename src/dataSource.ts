@@ -2073,6 +2073,7 @@ interface GitRefData {
 interface GitRepoInfo extends GitBranchData {
 	remotes: string[];
 	stashes: GitStash[];
+	tags: string[];
 }
 
 interface GitRepoConfigData {

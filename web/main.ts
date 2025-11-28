@@ -345,6 +345,16 @@ class GitGraphView {
 		// This list of tags is just used to provide additional information in the dialogs. Tag information included in commits is used for all other purposes (e.g. rendering, context menus)
 		const tagsChanged = !arraysStrictlyEqual(this.gitTags, tags);
 		this.gitTags = tags;
+		if (tagsChanged) {
+			if (this.currentTags !== null && !(this.currentTags.length === 1 && this.currentTags[0] === SHOW_ALL_BRANCHES)) {
+				// Filter any tags that are currently selected, but no longer exist
+				this.currentTags = this.currentTags.filter((tag) => this.gitTags.includes(tag));
+			}
+			if (this.currentTags === null || this.currentTags.length === 0) {
+				this.currentTags = [SHOW_ALL_BRANCHES];
+			}
+			this.tagDropdown.setOptions(this.getTagOptions(), this.currentTags);
+		}
 
 		if (!this.currentRepoLoading && !this.currentRepoRefreshState.hard && this.moreCommitsAvailable === moreAvailable && this.onlyFollowFirstParent === onlyFollowFirstParent && this.commitHead === commitHead && commits.length > 0 && arraysEqual(this.commits, commits, (a, b) =>
 			a.hash === b.hash &&

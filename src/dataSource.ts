@@ -1534,7 +1534,7 @@ export class DataSource extends Disposable {
 	/**
 	 * Get the raw commits in a repository.
 	 * @param repo The path of the repository.
-	 * @param branches The list of branch heads to display, or NULL (show all).
+	 * @param refs The list of branch/tag heads to display, or NULL (show all).
 	 * @param num The maximum number of commits to return.
 	 * @param includeTags Include commits only referenced by tags.
 	 * @param includeRemotes Include remote branches.
@@ -1546,7 +1546,7 @@ export class DataSource extends Disposable {
 	 * @param stashes An array of all stashes in the repository.
 	 * @returns An array of commits.
 	 */
-	private getLog(repo: string, branches: ReadonlyArray<string> | null, authors: ReadonlyArray<string> | null, num: number, includeTags: boolean, includeRemotes: boolean, includeCommitsMentionedByReflogs: boolean, onlyFollowFirstParent: boolean, order: CommitOrdering, remotes: ReadonlyArray<string>, hideRemotes: ReadonlyArray<string>, stashes: ReadonlyArray<GitStash>) {
+	private getLog(repo: string, refs: ReadonlyArray<string> | null, authors: ReadonlyArray<string> | null, num: number, includeTags: boolean, includeRemotes: boolean, includeCommitsMentionedByReflogs: boolean, onlyFollowFirstParent: boolean, order: CommitOrdering, remotes: ReadonlyArray<string>, hideRemotes: ReadonlyArray<string>, stashes: ReadonlyArray<GitStash>) {
 		const args = ['-c', 'log.showSignature=false', 'log', '--max-count=' + num, '--format=' + this.gitFormatLog, '--' + order + '-order', '-z'];
 		if (onlyFollowFirstParent) {
 			args.push('--first-parent');
@@ -1556,9 +1556,9 @@ export class DataSource extends Disposable {
 				args.push(`--author=${authors[i]} <`);
 			}
 		}
-		if (branches !== null) {
-			for (let i = 0; i < branches.length; i++) {
-				args.push(branches[i]);
+		if (refs !== null) {
+			for (let i = 0; i < refs.length; i++) {
+				args.push(refs[i]);
 			}
 		} else {
 			// Show All

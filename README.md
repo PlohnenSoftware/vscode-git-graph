@@ -5,8 +5,14 @@ View a Git Graph of your repository, and perform Git actions from the graph.
 **This is a fork of the stale [Git Graph](https://github.com/mhutchie/vscode-git-graph) extension, and the source code can be found on [GitHub](https://github.com/git-hub-tig/vscode-git-graph).**
 
 For any issues or advice, you can find the pull requests page [here](https://github.com/git-hub-tig/vscode-git-graph/pulls).
+## Resources
+
+*   [Gxl's Repository](https://github.com/git-hub-tig/vscode-git-graph)
+*   [Issues](https://github.com/git-hub-tig/vscode-git-graph/issues)
+*   [Marketplace](https://marketplace.visualstudio.com/items?itemName=Gxl.git-graph-3)
 
 This version aims to address some of the long-standing issues and to keep up with the latest VSCode updates.
+
 
 ## Why a Fork?
 

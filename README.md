@@ -1,6 +1,12 @@
 # Git Graph (Fork)
 
-This is a fork of the popular [Git Graph](https://github.com/mhutchie/vscode-git-graph) extension for Visual Studio Code. This version aims to address some of the long-standing issues and to keep up with the latest VSCode updates.
+View a Git Graph of your repository, and perform Git actions from the graph.
+
+**This is a fork of the stale [Git Graph](https://github.com/mhutchie/vscode-git-graph) extension, and the source code can be found on [GitHub](https://github.com/git-hub-tig/vscode-git-graph).**
+
+For any issues or advice, you can find the pull requests page [here](https://github.com/git-hub-tig/vscode-git-graph/pulls).
+
+This version aims to address some of the long-standing issues and to keep up with the latest VSCode updates.
 
 ## Why a Fork?
 

@@ -1,4 +1,3 @@
-
 class GitGraphView {
 	private gitRepos: GG.GitRepoSet;
 	private gitBranches: ReadonlyArray<string> = [];
@@ -34,6 +33,7 @@ class GitGraphView {
 
 	private moreCommitsAvailable: boolean = false;
 	private expandedCommit: ExpandedCommit | null = null;
+	private selectedCommits: Set<string> = new Set();
 	private maxCommits: number;
 	private scrollTop = 0;
 	private renderedGitBranchHead: string | null = null;
@@ -55,6 +55,7 @@ class GitGraphView {
 	private tableColHeadersElem: HTMLElement | null;
 	private readonly footerElem: HTMLElement;
 	private readonly showRemoteBranchesElem: HTMLInputElement;
+	private readonly simplifyByDecorationElem: HTMLInputElement;
 	private readonly refreshBtnElem: HTMLElement;
 
 	constructor(viewElem: HTMLElement, prevState: WebViewState | null) {
@@ -92,17 +93,22 @@ class GitGraphView {
 			this.saveState();
 			this.clearCommits();
 			this.requestLoadRepoInfoAndCommits(true, true);
-		});
+		}, this.config.singleBranchSelect);
 		this.authorDropdown = new Dropdown('authorDropdown', false, true, 'Authors', (values) => {
 			this.currentAuthors = values;
 			this.maxCommits = this.config.initialLoadCommits;
 			this.saveState();
 			this.clearCommits();
 			this.requestLoadRepoInfoAndCommits(true, true);
-		});
+		}, this.config.singleAuthorSelect);
 		this.showRemoteBranchesElem = <HTMLInputElement>document.getElementById('showRemoteBranchesCheckbox')!;
 		this.showRemoteBranchesElem.addEventListener('change', () => {
 			this.saveRepoStateValue(this.currentRepo, 'showRemoteBranchesV2', this.showRemoteBranchesElem.checked ? GG.BooleanOverride.Enabled : GG.BooleanOverride.Disabled);
+			this.refresh(true);
+		});
+		this.simplifyByDecorationElem = <HTMLInputElement>document.getElementById('simplifyByDecorationCheckbox')!;
+		this.simplifyByDecorationElem.addEventListener('change', () => {
+			this.saveRepoStateValue(this.currentRepo, 'simplifyByDecoration', this.simplifyByDecorationElem.checked ? GG.BooleanOverride.Enabled : GG.BooleanOverride.Disabled);
 			this.refresh(true);
 		});
 
@@ -135,11 +141,13 @@ class GitGraphView {
 			this.expandedCommit = prevState.expandedCommit;
 			this.avatars = prevState.avatars;
 			this.gitConfig = prevState.gitConfig;
+			this.selectedCommits = new Set(prevState.selectedCommits || []);
 			this.loadRepoInfo(prevState.gitBranches, prevState.gitBranchHead, prevState.gitRemotes, prevState.gitStashes, true);
 			this.loadCommits(prevState.commits, prevState.commitHead, prevState.gitTags, prevState.moreCommitsAvailable, prevState.onlyFollowFirstParent);
 			this.findWidget.restoreState(prevState.findWidget);
 			this.settingsWidget.restoreState(prevState.settingsWidget);
 			this.showRemoteBranchesElem.checked = getShowRemoteBranches(this.gitRepos[prevState.currentRepo].showRemoteBranchesV2);
+			this.simplifyByDecorationElem.checked = getSimplifyByDecoration(this.gitRepos[prevState.currentRepo].simplifyByDecoration);
 		}
 
 		let loadViewTo = initialState.loadViewTo;
@@ -224,13 +232,14 @@ class GitGraphView {
 		this.currentRepo = repo;
 		this.currentRepoLoading = true;
 		this.showRemoteBranchesElem.checked = getShowRemoteBranches(this.gitRepos[this.currentRepo].showRemoteBranchesV2);
+		this.simplifyByDecorationElem.checked = getSimplifyByDecoration(this.gitRepos[this.currentRepo].simplifyByDecoration);
 		this.maxCommits = this.config.initialLoadCommits;
 		this.gitConfig = null;
 		this.gitRemotes = [];
 		this.gitStashes = [];
 		this.gitTags = [];
 		this.currentBranches = null;
-		this.currentAuthors = null;
+		this.currentAuthors = [];
 		this.renderFetchButton();
 		this.closeCommitDetails(false);
 		this.settingsWidget.close();
@@ -291,8 +300,6 @@ class GitGraphView {
 		filterCurrentBranches();
 
 		this.saveState();
-		this.currentAuthors = [];
-		this.currentAuthors.push(SHOW_ALL_BRANCHES);
 
 		// Set up branch dropdown options
 		this.branchDropdown.setOptions(this.getBranchOptions(true), this.currentBranches);
@@ -600,6 +607,18 @@ class GitGraphView {
 		return possibleRemotes.find((remote) => remote !== null && this.gitRemotes.includes(remote)) || this.gitRemotes[0];
 	}
 
+	/**
+	 * Get the remote that the specified branch is tracking.
+	 * @param branchName - The name of the branch to get the tracking remote for
+	 * @returns The name of the remote the branch is tracking, or null if not tracking any remote
+	 */
+	private getRemoteForBranch(branchName: string): string | null {
+		if (!this.gitConfig || !this.gitConfig.branches[branchName]) {
+			return null;
+		}
+		return this.gitConfig.branches[branchName].remote;
+	}
+
 	public getRepoConfig(): Readonly<GG.GitRepoConfig> | null {
 		return this.gitConfig;
 	}
@@ -634,6 +653,7 @@ class GitGraphView {
 			repo: this.currentRepo,
 			refreshId: ++this.currentRepoRefreshState.loadRepoInfoRefreshId,
 			showRemoteBranches: getShowRemoteBranches(repoState.showRemoteBranchesV2),
+			simplifyByDecoration: getSimplifyByDecoration(repoState.simplifyByDecoration),
 			showStashes: getShowStashes(repoState.showStashes),
 			hideRemotes: repoState.hideRemotes
 		});
@@ -650,6 +670,7 @@ class GitGraphView {
 			maxCommits: this.maxCommits,
 			showTags: getShowTags(repoState.showTags),
 			showRemoteBranches: getShowRemoteBranches(repoState.showRemoteBranchesV2),
+			simplifyByDecoration: getSimplifyByDecoration(repoState.simplifyByDecoration),
 			includeCommitsMentionedByReflogs: getIncludeCommitsMentionedByReflogs(repoState.includeCommitsMentionedByReflogs),
 			onlyFollowFirstParent: getOnlyFollowFirstParent(repoState.onlyFollowFirstParent),
 			commitOrdering: getCommitOrdering(repoState.commitOrdering),
@@ -766,6 +787,7 @@ class GitGraphView {
 			onlyFollowFirstParent: this.onlyFollowFirstParent,
 			expandedCommit: expandedCommit,
 			scrollTop: this.scrollTop,
+			selectedCommits: Array.from(this.selectedCommits),
 			findWidget: this.findWidget.getState(),
 			settingsWidget: this.settingsWidget.getState()
 		});
@@ -813,6 +835,228 @@ class GitGraphView {
 		}
 	}
 
+	/* Multi-select Commit Management */
+
+	private toggleCommitSelection(commitHash: string, commitElem: HTMLElement) {
+		if (this.selectedCommits.has(commitHash)) {
+			this.selectedCommits.delete(commitHash);
+			commitElem.classList.remove('commitSelected');
+		} else {
+			this.selectedCommits.add(commitHash);
+			commitElem.classList.add('commitSelected');
+		}
+	}
+
+	private clearCommitSelection() {
+		const selectedElems = document.querySelectorAll('.commitSelected');
+		selectedElems.forEach(elem => elem.classList.remove('commitSelected'));
+		this.selectedCommits.clear();
+	}
+
+
+	private selectCommitRange(fromHash: string, toHash: string) {
+		const fromIndex = this.commitLookup[fromHash];
+		const toIndex = this.commitLookup[toHash];
+
+		if (fromIndex === undefined || toIndex === undefined) return;
+
+		this.clearCommitSelection();
+
+		// Determine the range
+		const startIndex = Math.min(fromIndex, toIndex);
+		const endIndex = Math.max(fromIndex, toIndex);
+
+		// Select all commits in the range
+		for (let i = startIndex; i <= endIndex; i++) {
+			const commit = this.commits[i];
+			if (commit) {
+				this.selectedCommits.add(commit.hash);
+				const commitElem = document.querySelector(`tr.commit[data-id="${i}"]`);
+				if (commitElem) {
+					commitElem.classList.add('commitSelected');
+				}
+			}
+		}
+	}
+
+	private getSelectedCommitsArray(): string[] {
+		return Array.from(this.selectedCommits).sort((a, b) => {
+			const indexA = this.commitLookup[a];
+			const indexB = this.commitLookup[b];
+			return indexA - indexB;
+		});
+	}
+
+	private areSelectedCommitsContiguous(): boolean {
+		if (this.selectedCommits.size < 2) return true;
+
+		const sortedCommits = this.getSelectedCommitsArray();
+		for (let i = 0; i < sortedCommits.length - 1; i++) {
+			const currentIndex = this.commitLookup[sortedCommits[i]];
+			const nextIndex = this.commitLookup[sortedCommits[i + 1]];
+			if (nextIndex - currentIndex !== 1) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	private areSelectedCommitsOnCurrentBranch(): boolean {
+		if (this.selectedCommits.size === 0 || !this.gitBranchHead) {
+			return false;
+		}
+
+		// Find the commit that the current branch points to
+		let currentBranchCommitIndex = -1;
+		for (let i = 0; i < this.commits.length; i++) {
+			if (this.commits[i].heads && this.commits[i].heads.includes(this.gitBranchHead)) {
+				currentBranchCommitIndex = i;
+				break;
+			}
+		}
+
+		if (currentBranchCommitIndex === -1) {
+			return false;
+		}
+
+		// Build a set of all commits that are ancestors of the current branch head
+		const branchCommits = new Set<string>();
+		const queue = [currentBranchCommitIndex];
+		const visited = new Set<number>();
+
+		while (queue.length > 0) {
+			const index = queue.shift()!;
+			if (visited.has(index)) continue;
+			visited.add(index);
+
+			const commit = this.commits[index];
+			branchCommits.add(commit.hash);
+
+			// Add parent commits to the queue
+			for (const parentHash of commit.parents) {
+				const parentIndex = this.commitLookup[parentHash];
+				if (parentIndex !== undefined && !visited.has(parentIndex)) {
+					queue.push(parentIndex);
+				}
+			}
+		}
+
+		// Check if all selected commits are in the branch
+		for (const hash of Array.from(this.selectedCommits)) {
+			if (!branchCommits.has(hash)) {
+				return false;
+			}
+		}
+
+		return true;
+	}
+
+	private dropCommitsPossible(): boolean {
+		if (this.selectedCommits.size === 0) return false;
+
+		for (const hash of Array.from(this.selectedCommits)) {
+			const index = this.commitLookup[hash];
+			if (!this.graph.dropCommitPossible(index)) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	private squashCommitsAction(target: DialogTarget & CommitTarget) {
+		const selectedCommits = this.getSelectedCommitsArray();
+		if (selectedCommits.length < 2) return;
+
+		const newestCommit = selectedCommits[0];
+		const newestCommitData = this.commits[this.commitLookup[newestCommit]];
+
+		const commitsList = selectedCommits.map(hash => {
+			const commitData = this.commits[this.commitLookup[hash]];
+			return `<b>${abbrevCommit(hash)}</b> - ${escapeHtml(commitData.message)}`;
+		}).join('<br>');
+
+		dialog.showForm(
+			`Are you sure you want to squash ${selectedCommits.length} commits into one?<br><br>` +
+			`${commitsList}`,
+			[{
+				type: DialogInputType.Text,
+				name: 'Commit Message',
+				default: newestCommitData.message,
+				placeholder: 'Enter the commit message for the squashed commit'
+			}],
+			'Yes, squash commits',
+			(values) => {
+				const commitMessage = <string>values[0];
+				runAction({
+					command: 'squashCommits',
+					repo: this.currentRepo,
+					commits: selectedCommits,
+					commitMessage: commitMessage
+				}, 'Squashing Commits');
+				this.clearCommitSelection();
+			},
+			target
+		);
+	}
+
+	private dropSelectedCommitsAction(target: DialogTarget) {
+		const selectedCommits = this.getSelectedCommitsArray();
+		if (selectedCommits.length === 0) return;
+
+		const commitsList = selectedCommits.map(hash => {
+			const commitData = this.commits[this.commitLookup[hash]];
+			return `<b>${abbrevCommit(hash)}</b> - ${escapeHtml(commitData.message)}`;
+		}).join('<br>');
+
+		dialog.showConfirmation(
+			`Are you sure you want to permanently drop ${selectedCommits.length} commit${selectedCommits.length > 1 ? 's' : ''}?<br><br>${commitsList}` +
+			(this.onlyFollowFirstParent ? '<br/><br/><i>Note: By enabling "Only follow the first parent of commits", some commits may have been hidden from the Git Graph View that could affect the outcome of performing this action.</i>' : ''),
+			'Yes, drop',
+			() => {
+				runAction({
+					command: 'dropCommits',
+					repo: this.currentRepo,
+					commits: selectedCommits
+				}, 'Dropping Commits');
+				this.clearCommitSelection();
+			},
+			target
+		);
+	}
+
+	private editCommitMessageAction(target: DialogTarget & CommitTarget) {
+		const hash = target.hash;
+		const commit = this.commits[this.commitLookup[hash]];
+
+		dialog.showForm(
+			`Edit commit message for <b><i>${abbrevCommit(hash)}</i></b>:`,
+			[{
+				type: DialogInputType.Text,
+				name: 'Commit Message',
+				default: commit.message,
+				placeholder: 'Enter the new commit message'
+			}],
+			'Update Message',
+			(values) => {
+				const newMessage = <string>values[0];
+				if (newMessage.trim() === '') {
+					dialog.showError('Commit message cannot be empty.', null, null, null);
+					return;
+				}
+				if (newMessage === commit.message) {
+					return; // No change needed
+				}
+				runAction({
+					command: 'editCommitMessage',
+					repo: this.currentRepo,
+					commitHash: hash,
+					message: newMessage
+				}, 'Editing Commit Message');
+			},
+			target
+		);
+	}
+
 
 	/* Renderers */
 
@@ -828,7 +1072,7 @@ class GitGraphView {
 		}
 
 		const colHeadersElem = document.getElementById('tableColHeaders');
-		const cdvHeight = this.gitRepos[this.currentRepo].cdvHeight;
+		const cdvHeight = this.gitRepos[this.currentRepo].isCdvSummaryHidden ? 0 : this.gitRepos[this.currentRepo].cdvHeight;
 		const headerHeight = colHeadersElem !== null ? colHeadersElem.clientHeight + 1 : 0;
 		const expandedCommit = this.isCdvDocked() ? null : this.expandedCommit;
 		const expandedCommitElem = expandedCommit !== null ? document.getElementById('cdv') : null;
@@ -965,6 +1209,19 @@ class GitGraphView {
 			}
 		}
 
+		// Restore visual selection state
+		if (this.selectedCommits.size > 0) {
+			this.selectedCommits.forEach(commitHash => {
+				const commitIndex = this.commitLookup[commitHash];
+				if (commitIndex !== undefined) {
+					const commitElem = document.querySelector(`tr.commit[data-id="${commitIndex}"]`);
+					if (commitElem) {
+						commitElem.classList.add('commitSelected');
+					}
+				}
+			});
+		}
+
 		if (this.config.stickyHeader) {
 			this.tableColHeadersElem = document.getElementById('tableColHeaders');
 			this.alignTableHeaderToControls();
@@ -1020,7 +1277,6 @@ class GitGraphView {
 	private getBranchContextMenuActions(target: DialogTarget & RefTarget): ContextMenuActions {
 		const refName = target.ref, visibility = this.config.contextMenuActionsVisibility.branch;
 		const isSelectedInBranchesDropdown = this.branchDropdown.isSelected(refName);
-		// const isSelectedInBranchesDropdown = this.authorDropdown.isSelected(refName);
 
 		return [[
 			{
@@ -1035,6 +1291,10 @@ class GitGraphView {
 						runAction({ command: 'renameBranch', repo: this.currentRepo, oldName: refName, newName: newName }, 'Renaming Branch');
 					}, target);
 				}
+			}, {
+				title: 'Create Branch' + ELLIPSIS,
+				visible: visibility.createBranch,
+				onClick: () => this.createBranchAction(target.hash, '', true, target)
 			}, {
 				title: 'Delete Branch' + ELLIPSIS,
 				visible: visibility.delete && this.gitBranchHead !== refName,
@@ -1058,7 +1318,7 @@ class GitGraphView {
 				visible: visibility.merge && this.gitBranchHead !== refName,
 				onClick: () => this.mergeAction(refName, refName, GG.MergeActionOn.Branch, target)
 			}, {
-				title: 'Rebase current branch on Branch' + ELLIPSIS,
+				title: 'Rebase current Branch on Branch' + ELLIPSIS,
 				visible: visibility.rebase && this.gitBranchHead !== refName,
 				onClick: () => this.rebaseAction(refName, refName, GG.RebaseActionOn.Branch, target)
 			}, {
@@ -1104,6 +1364,24 @@ class GitGraphView {
 						}, 'Pushing Branch');
 					}, target);
 				}
+			}, {
+				title: 'Pull Branch' + ELLIPSIS,
+				visible: visibility.pull && this.gitRemotes.length > 0,
+				onClick: () => {
+					const trackingRemote = this.getRemoteForBranch(refName);
+					if (!trackingRemote) {
+						dialog.showError('Cannot pull branch <b><i>' + escapeHtml(refName) + '</i></b> because it is not tracking a remote branch. You may need to set an upstream branch first.', 'Pull Branch', null, null);
+						return;
+					}
+					dialog.showForm('Are you sure you want to update the local branch <b><i>' + escapeHtml(refName) + '</i></b> with the latest changes from <b><i>' + escapeHtml(trackingRemote + '/' + refName) + '</i></b>?', [{
+						type: DialogInputType.Checkbox,
+						name: 'Force Update',
+						value: this.config.dialogDefaults.fetchIntoLocalBranch.forceFetch,
+						info: 'Force the local branch to be reset to the remote branch (discard local commits).'
+					}], 'Yes, update', (values) => {
+						runAction({ command: 'fetchIntoLocalBranch', repo: this.currentRepo, remote: trackingRemote, remoteBranch: refName, localBranch: refName, force: <boolean>values[0] }, 'Updating Branch');
+					}, target);
+				}
 			}
 		], [
 			this.getViewIssueAction(refName, visibility.viewIssue, target),
@@ -1128,8 +1406,8 @@ class GitGraphView {
 			},
 			{
 				title: 'Select in Branches Dropdown',
-				visible: visibility.selectInBranchesDropdown && !isSelectedInBranchesDropdown,
-				onClick: () => this.branchDropdown.selectOption(refName)
+				visible: visibility.selectInBranchesDropdown && (!isSelectedInBranchesDropdown || this.branchDropdown.isShowAllSelected()),
+				onClick: (e) => this.branchDropdown.selectOption(refName, e)
 			},
 			{
 				title: 'Unselect in Branches Dropdown',
@@ -1147,10 +1425,37 @@ class GitGraphView {
 		]];
 	}
 
+	private getMultiSelectCommitContextMenuActions(target: DialogTarget & CommitTarget): ContextMenuActions {
+		const visibility = this.config.contextMenuActionsVisibility.commit;
+		const multiSelectActions: ContextMenuAction[] = [];
+
+		// Squash option (requires contiguous commits)
+		if (this.areSelectedCommitsContiguous() && this.areSelectedCommitsOnCurrentBranch()) {
+			multiSelectActions.push({
+				title: 'Squash Selected Commits' + ELLIPSIS,
+				visible: true,
+				onClick: () => this.squashCommitsAction(target)
+			});
+		}
+
+		// Drop option (check if all selected commits can be dropped)
+		if (this.dropCommitsPossible() && this.areSelectedCommitsOnCurrentBranch()) {
+			multiSelectActions.push({
+				title: 'Drop Selected Commits' + ELLIPSIS,
+				visible: visibility.drop,
+				onClick: () => this.dropSelectedCommitsAction(target)
+			});
+		}
+
+		return multiSelectActions.length > 0 ? [multiSelectActions] : [];
+	}
+
 	private getCommitContextMenuActions(target: DialogTarget & CommitTarget): ContextMenuActions {
 		const hash = target.hash, visibility = this.config.contextMenuActionsVisibility.commit;
 		const commit = this.commits[this.commitLookup[hash]];
-		return [[
+		let actions: ContextMenuActions = [];
+
+		return [...actions, [
 			{
 				title: 'Add Tag' + ELLIPSIS,
 				visible: visibility.addTag,
@@ -1239,6 +1544,18 @@ class GitGraphView {
 					}
 				}
 			}, {
+				title: 'Edit Message' + ELLIPSIS,
+				visible: visibility.editMessage && this.areSelectedCommitsOnCurrentBranch(),
+				onClick: () => this.editCommitMessageAction(target)
+			}, {
+				title: 'Reset Last Commit' + ELLIPSIS,
+				visible: visibility.undo && hash === this.commitHead,
+				onClick: () => {
+					dialog.showConfirmation('Are you sure you want to reset the last commit? This will keep all changes from the commit as uncommitted changes.', 'Yes, reset the last commit', () => {
+						runAction({ command: 'undoLastCommit', repo: this.currentRepo }, 'Resetting Last Commit');
+					}, target);
+				}
+			}, {
 				title: 'Drop' + ELLIPSIS,
 				visible: visibility.drop && this.graph.dropCommitPossible(this.commitLookup[hash]),
 				onClick: () => {
@@ -1253,7 +1570,7 @@ class GitGraphView {
 				visible: visibility.merge,
 				onClick: () => this.mergeAction(hash, abbrevCommit(hash), GG.MergeActionOn.Commit, target)
 			}, {
-				title: 'Rebase current branch on this Commit' + ELLIPSIS,
+				title: 'Rebase current Branch on this Commit' + ELLIPSIS,
 				visible: visibility.rebase,
 				onClick: () => this.rebaseAction(hash, abbrevCommit(hash), GG.RebaseActionOn.Commit, target)
 			}, {
@@ -1297,6 +1614,10 @@ class GitGraphView {
 				title: 'Checkout Branch' + ELLIPSIS,
 				visible: visibility.checkout,
 				onClick: () => this.checkoutBranchAction(refName, remote, null, target)
+			}, {
+				title: 'Create Branch' + ELLIPSIS,
+				visible: visibility.createBranch,
+				onClick: () => this.createBranchAction(target.hash, branchName, true, target)
 			}, {
 				title: 'Delete Remote Branch' + ELLIPSIS,
 				visible: visibility.delete && remote !== '',
@@ -1366,8 +1687,8 @@ class GitGraphView {
 			},
 			{
 				title: 'Select in Branches Dropdown',
-				visible: visibility.selectInBranchesDropdown && !isSelectedInBranchesDropdown,
-				onClick: () => this.branchDropdown.selectOption(prefixedRefName)
+				visible: visibility.selectInBranchesDropdown && (!isSelectedInBranchesDropdown || this.branchDropdown.isShowAllSelected()),
+				onClick: (e) => this.branchDropdown.selectOption(prefixedRefName, e)
 			},
 			{
 				title: 'Unselect in Branches Dropdown',
@@ -1729,16 +2050,17 @@ class GitGraphView {
 	private mergeAction(obj: string, name: string, actionOn: GG.MergeActionOn, target: DialogTarget & (CommitTarget | RefTarget)) {
 		dialog.showForm('Are you sure you want to merge ' + actionOn.toLowerCase() + ' <b><i>' + escapeHtml(name) + '</i></b> into ' + (this.gitBranchHead !== null ? '<b><i>' + escapeHtml(this.gitBranchHead) + '</i></b> (the current branch)' : 'the current branch') + '?', [
 			{ type: DialogInputType.Checkbox, name: 'Create a new commit even if fast-forward is possible', value: this.config.dialogDefaults.merge.noFastForward },
+			{ type: DialogInputType.Checkbox, name: 'Allow unrelated histories', value: this.config.dialogDefaults.merge.allowUnrelatedHistories, info: 'Allow merging branches from two completely different repositories or branches.' },
 			{ type: DialogInputType.Checkbox, name: 'Squash Commits', value: this.config.dialogDefaults.merge.squash, info: 'Create a single commit on the current branch whose effect is the same as merging this ' + actionOn.toLowerCase() + '.' },
 			{ type: DialogInputType.Checkbox, name: 'No Commit', value: this.config.dialogDefaults.merge.noCommit, info: 'The changes of the merge will be staged but not committed, so that you can review and/or modify the merge result before committing.' }
 		], 'Yes, merge', (values) => {
-			runAction({ command: 'merge', repo: this.currentRepo, obj: obj, actionOn: actionOn, createNewCommit: <boolean>values[0], squash: <boolean>values[1], noCommit: <boolean>values[2] }, 'Merging ' + actionOn);
+			runAction({ command: 'merge', repo: this.currentRepo, obj: obj, actionOn: actionOn, createNewCommit: <boolean>values[0], allowUnrelatedHistories: <boolean>values[1], squash: <boolean>values[2], noCommit: <boolean>values[3] }, 'Merging ' + actionOn);
 		}, target);
 	}
 
 	private rebaseAction(obj: string, name: string, actionOn: GG.RebaseActionOn, target: DialogTarget & (CommitTarget | RefTarget)) {
 		dialog.showForm('Are you sure you want to rebase ' + (this.gitBranchHead !== null ? '<b><i>' + escapeHtml(this.gitBranchHead) + '</i></b> (the current branch)' : 'the current branch') + ' on ' + actionOn.toLowerCase() + ' <b><i>' + escapeHtml(name) + '</i></b>?', [
-			{ type: DialogInputType.Checkbox, name: 'Launch Interactive Rebase in new Terminal', value: this.config.dialogDefaults.rebase.interactive },
+			{ type: DialogInputType.Checkbox, name: 'Interactive Rebase (launch in new Terminal)', value: this.config.dialogDefaults.rebase.interactive },
 			{ type: DialogInputType.Checkbox, name: 'Ignore Date', value: this.config.dialogDefaults.rebase.ignoreDate, info: 'Only applicable to a non-interactive rebase.' }
 		], 'Yes, rebase', (values) => {
 			let interactive = <boolean>values[0];
@@ -2044,7 +2366,6 @@ class GitGraphView {
 				this.repoDropdown.refresh();
 				this.branchDropdown.refresh();
 				this.authorDropdown.refresh();
-
 			}
 			if (fmc !== findMatchColour) {
 				findMatchColour = fmc;
@@ -2059,7 +2380,7 @@ class GitGraphView {
 	}
 
 	private observeViewScroll() {
-		let active = this.viewElem.scrollTop > 0, timeout: NodeJS.Timer | null = null;
+		let active = this.viewElem.scrollTop > 0, timeout: NodeJS.Timeout | null = null;
 		this.viewElem.addEventListener('scroll', () => {
 			const scrollTop = this.viewElem.scrollTop;
 			if (active !== scrollTop > 0) {
@@ -2280,22 +2601,82 @@ class GitGraphView {
 
 			} else if ((eventElem = eventTarget.closest('.commit')) !== null) {
 				// .commit was clicked
-				if (this.expandedCommit !== null) {
-					const commit = this.getCommitOfElem(eventElem);
-					if (commit === null) return;
+				const commit = this.getCommitOfElem(eventElem);
+				if (commit === null) return;
 
-					if (this.expandedCommit.commitHash === commit.hash) {
-						this.closeCommitDetails(true);
-					} else if ((<MouseEvent>e).ctrlKey || (<MouseEvent>e).metaKey) {
-						if (this.expandedCommit.compareWithHash === commit.hash) {
-							this.closeCommitComparison(true);
-						} else if (this.expandedCommit.commitElem !== null) {
-							this.loadCommitComparison(this.expandedCommit.commitElem, eventElem);
+				const mouseEvent = <MouseEvent>e;
+
+				if (mouseEvent.shiftKey) {
+					if (this.selectedCommits.size > 0) {
+						// Shift-click: select range from first selected commit
+						const anchorCommit = Array.from(this.selectedCommits)[0];
+						this.selectCommitRange(anchorCommit, commit.hash);
+
+						// Check if exactly 2 commits are selected to show diff
+						if (this.selectedCommits.size === 2) {
+							// Get the two selected commits
+							const selectedHashes = Array.from(this.selectedCommits);
+							const commitElems = selectedHashes.map(hash => {
+								const index = this.commitLookup[hash];
+								return document.querySelector(`tr.commit[data-id="${index}"]`) as HTMLElement;
+							}).filter(elem => elem !== null);
+
+							if (commitElems.length === 2) {
+								// Load comparison between the two commits
+								const [firstIndex, secondIndex] = selectedHashes.map(hash => this.commitLookup[hash]);
+								if (firstIndex < secondIndex) {
+									this.loadCommitComparison(commitElems[1], commitElems[0]);
+								} else {
+									this.loadCommitComparison(commitElems[0], commitElems[1]);
+								}
+							}
+						} else if (this.selectedCommits.size > 2) {
+							// More than 2 commits selected, close any open details
+							this.closeCommitDetails(true);
 						}
 					} else {
+						// No commits selected, just select this one
+						this.toggleCommitSelection(commit.hash, eventElem);
+					}
+				} else if (mouseEvent.ctrlKey || mouseEvent.metaKey) {
+					// Ctrl/Cmd-click: toggle individual commit selection
+					this.toggleCommitSelection(commit.hash, eventElem);
+
+					// Check if exactly 2 commits are selected to show diff
+					if (this.selectedCommits.size === 2) {
+						// Get the two selected commits
+						const selectedHashes = Array.from(this.selectedCommits);
+						const commitElems = selectedHashes.map(hash => {
+							const index = this.commitLookup[hash];
+							return document.querySelector(`tr.commit[data-id="${index}"]`) as HTMLElement;
+						}).filter(elem => elem !== null);
+
+						if (commitElems.length === 2) {
+							// Load comparison between the two commits
+							const [firstIndex, secondIndex] = selectedHashes.map(hash => this.commitLookup[hash]);
+							if (firstIndex < secondIndex) {
+								this.loadCommitComparison(commitElems[1], commitElems[0]);
+							} else {
+								this.loadCommitComparison(commitElems[0], commitElems[1]);
+							}
+						}
+					} else if (this.selectedCommits.size > 2) {
+						// More than 2 commits selected, close any open details
+						this.closeCommitDetails(true);
+					}
+				} else if (this.expandedCommit !== null) {
+					if (this.expandedCommit.commitHash === commit.hash) {
+						this.closeCommitDetails(true);
+					} else {
+						// Regular click with details open: select only this commit and load details
+						this.clearCommitSelection();
+						this.toggleCommitSelection(commit.hash, eventElem);
 						this.loadCommitDetails(eventElem);
 					}
 				} else {
+					// Regular click: select only this commit and load details
+					this.clearCommitSelection();
+					this.toggleCommitSelection(commit.hash, eventElem);
 					this.loadCommitDetails(eventElem);
 				}
 			}
@@ -2388,6 +2769,19 @@ class GitGraphView {
 				const commit = this.getCommitOfElem(eventElem);
 				if (commit === null) return;
 
+				// Close any open commit details to avoid visual confusion
+				// The commitDetailsOpen class can make commits appear selected
+				if (this.expandedCommit !== null && this.expandedCommit.commitHash !== commit.hash) {
+					this.closeCommitDetails(false);
+				}
+
+				// Only clear and select if the commit is not already selected
+				if (!this.selectedCommits.has(commit.hash)) {
+					this.clearCommitSelection();
+					this.toggleCommitSelection(commit.hash, eventElem);
+				}
+
+				// If the commit is already selected, keep the current selection for multi-select context menu
 				const target: ContextMenuTarget & DialogTarget & CommitTarget = {
 					type: TargetType.Commit,
 					hash: commit.hash,
@@ -2402,7 +2796,11 @@ class GitGraphView {
 					target.ref = commit.stash.selector;
 					actions = this.getStashContextMenuActions(<RefTarget>target);
 				} else {
-					actions = this.getCommitContextMenuActions(target);
+					if (this.selectedCommits.size > 1 && this.selectedCommits.has(commit.hash)) {
+						actions = this.getMultiSelectCommitContextMenuActions(target);
+					} else {
+						actions = this.getCommitContextMenuActions(target);
+					}
 				}
 
 				contextMenu.show(actions, false, target, <MouseEvent>e, this.viewElem);
@@ -2597,7 +2995,7 @@ class GitGraphView {
 		}
 
 		if (expandedCommit.loading) {
-			html += '<div id="cdvLoading">' + SVG_ICONS.loading + ' Loading ' + (expandedCommit.compareWithHash === null ? expandedCommit.commitHash !== UNCOMMITTED ? 'Commit Details' : 'Uncommitted Changes' : 'Commit Comparison') + ' ...</div>';
+			html += '<div id="cdvFiles"></div><div id="cdvLoading">' + SVG_ICONS.loading + ' Loading ' + (expandedCommit.compareWithHash === null ? expandedCommit.commitHash !== UNCOMMITTED ? 'Commit Details' : 'Uncommitted Changes' : 'Commit Comparison') + ' ...</div>';
 		} else {
 			html += '<div id="cdvSummary">';
 			if (expandedCommit.compareWithHash === null) {
@@ -2637,7 +3035,7 @@ class GitGraphView {
 				// Commit comparison should be shown
 				html += 'Displaying all changes from <b>' + commitOrder.from + '</b> to <b>' + (commitOrder.to !== UNCOMMITTED ? commitOrder.to : 'Uncommitted Changes') + '</b>.';
 			}
-			html += '</div><div id="cdvFiles">' + generateFileViewHtml(expandedCommit.fileTree!, expandedCommit.fileChanges!, expandedCommit.lastViewedFile, expandedCommit.contextMenuOpen.fileView, this.getFileViewType(), commitOrder.to === UNCOMMITTED) + '</div><div id="cdvDivider"></div>';
+			html += '</div><div id="cdvFiles">' + (!isDocked ? '<div id="cdvSummaryToggleBtn">' + SVG_ICONS.collapse + '</div>' : '') + '<div id="cdvFilesViewWrapper"><div id="cdvFilesView">' + generateFileViewHtml(expandedCommit.fileTree!, expandedCommit.fileChanges!, expandedCommit.lastViewedFile, expandedCommit.contextMenuOpen.fileView, this.getFileViewType(), commitOrder.to === UNCOMMITTED) + '</div></div></div><div id="cdvDivider"></div>';
 		}
 		html += '</div><div id="cdvControls"><div id="cdvClose" class="cdvControlBtn" title="Close">' + SVG_ICONS.close + '</div>' +
 			(codeReviewPossible ? '<div id="cdvCodeReview" class="cdvControlBtn">' + SVG_ICONS.review + '</div>' : '') +
@@ -2645,23 +3043,30 @@ class GitGraphView {
 			(externalDiffPossible ? '<div id="cdvExternalDiff" class="cdvControlBtn">' + SVG_ICONS.linkExternal + '</div>' : '') +
 			'</div><div class="cdvHeightResize"></div>';
 
-		elem.innerHTML = isDocked ? html : '<td><div class="cdvHeightResize"></div></td><td colspan="' + (this.getNumColumns() - 1) + '">' + html + '</td>';
-		if (!expandedCommit.loading) this.setCdvDivider();
+		elem.innerHTML = isDocked ? html : '<td><div class="cdvHeightResize"></div></td><td colspan="' + (this.getNumColumns() - 1) + '"><div id="cdvContentWrapper">' + html + '</div></td>';
+		this.setCdvDivider();
+		this.setCdvHeight(elem, isDocked);
 		if (!isDocked) this.renderGraph();
 
 		if (!refresh) {
 			if (isDocked) {
-				let elemTop = this.controlsElem.clientHeight + expandedCommit.commitElem.offsetTop;
-				if (elemTop - 8 < this.viewElem.scrollTop) {
-					// Commit is above what is visible on screen
-					this.viewElem.scroll(0, elemTop - 8);
-				} else if (elemTop - this.viewElem.clientHeight + 32 > this.viewElem.scrollTop) {
-					// Commit is below what is visible on screen
-					this.viewElem.scroll(0, elemTop - this.viewElem.clientHeight + 32);
+				if (!this.config.commitDetailsView.autoScroll) {
+					// Do not auto-scroll when opening details (docked)
+				} else {
+					let elemTop = this.controlsElem.clientHeight + expandedCommit.commitElem.offsetTop;
+					if (elemTop - 8 < this.viewElem.scrollTop) {
+						// Commit is above what is visible on screen
+						this.viewElem.scroll(0, elemTop - 8);
+					} else if (elemTop - this.viewElem.clientHeight + 32 > this.viewElem.scrollTop) {
+						// Commit is below what is visible on screen
+						this.viewElem.scroll(0, elemTop - this.viewElem.clientHeight + 32);
+					}
 				}
 			} else {
 				let elemTop = this.controlsElem.clientHeight + elem.offsetTop, cdvHeight = this.gitRepos[this.currentRepo].cdvHeight;
-				if (this.config.commitDetailsView.autoCenter) {
+				if (!this.config.commitDetailsView.autoScroll) {
+					// Do not auto-scroll when opening details (inline)
+				} else if (this.config.commitDetailsView.autoCenter) {
 					// Center Commit Detail View setting is enabled
 					// elemTop - commit height [24px] + (commit details view height + commit height [24px]) / 2 - (view height) / 2
 					this.viewElem.scroll(0, elemTop - 12 + (cdvHeight - this.viewElem.clientHeight) / 2);
@@ -2697,7 +3102,7 @@ class GitGraphView {
 				}
 			}, () => this.saveState());
 
-			observeElemScroll('cdvFiles', expandedCommit.scrollTop.fileView, (scrollTop) => {
+			observeElemScroll('cdvFilesView', expandedCommit.scrollTop.fileView, (scrollTop) => {
 				if (this.expandedCommit === null) return;
 				this.expandedCommit.scrollTop.fileView = scrollTop;
 				if (this.expandedCommit.contextMenuOpen.fileView > -1) {
@@ -2719,6 +3124,13 @@ class GitGraphView {
 			document.getElementById('cdvExpand')!.addEventListener('click', () => {
 				this.openFolders(true);
 			});
+			let cdvSummaryToggleBtn = document.getElementById('cdvSummaryToggleBtn');
+			if (cdvSummaryToggleBtn !== null) cdvSummaryToggleBtn.addEventListener('click', () => {
+				this.gitRepos[this.currentRepo].isCdvSummaryHidden = !(this.gitRepos[this.currentRepo].isCdvSummaryHidden);
+				this.saveRepoState();
+				this.hideCdvSummary(this.gitRepos[this.currentRepo].isCdvSummaryHidden);
+			});
+			this.hideCdvSummary(this.gitRepos[this.currentRepo].isCdvSummaryHidden);
 
 			if (codeReviewPossible) {
 				this.renderCodeReviewBtn();
@@ -2762,6 +3174,20 @@ class GitGraphView {
 		}
 	}
 
+	private hideCdvSummary(hide: boolean) {
+		let btnIcon = document.getElementById('cdvSummaryToggleBtn')?.getElementsByTagName('svg')?.[0] ?? null;
+		let cdvSummary = document.getElementById('cdvSummary');
+		if (hide && !this.isCdvDocked()) {
+			if (btnIcon) btnIcon.style.transform = 'rotate(90deg)';
+			cdvSummary!.classList.add('hidden');
+		} else {
+			if (btnIcon) btnIcon.style.transform = 'rotate(-90deg)';
+			cdvSummary!.classList.remove('hidden');
+		}
+		let elem = document.getElementById('cdv');
+		if (elem !== null) this.setCdvHeight(elem, this.isCdvDocked());
+	}
+
 	private setCdvHeight(elem: HTMLElement, isDocked: boolean) {
 		let height = this.gitRepos[this.currentRepo].cdvHeight, windowHeight = window.innerHeight;
 		if (height > windowHeight - 40) {
@@ -2773,8 +3199,24 @@ class GitGraphView {
 		}
 
 		let heightPx = height + 'px';
-		elem.style.height = heightPx;
-		if (isDocked) this.viewElem.style.bottom = heightPx;
+		if (isDocked) {
+			this.viewElem.style.bottom = heightPx;
+			elem.style.height = heightPx;
+			return;
+		}
+		let inlineElem = document.getElementById('cdvContentWrapper');
+		if (!inlineElem) {
+			elem.style.height = heightPx;
+			return;
+		}
+		if (this.gitRepos[this.currentRepo].isCdvSummaryHidden) {
+			inlineElem.style.height = heightPx;
+			elem.style.height = '0px';
+		} else {
+			inlineElem.style.removeProperty('height');
+			elem.style.height = heightPx;
+		}
+		this.renderGraph();
 	}
 
 	private setCdvDivider() {
@@ -2859,7 +3301,7 @@ class GitGraphView {
 	 * @param fileWasViewed Was the file viewed - if so, set it to be the last viewed file.
 	 */
 	private cdvUpdateFileState(file: GG.GitFileChange, fileElem: HTMLElement, isReviewed: boolean | null, fileWasViewed: boolean) {
-		const expandedCommit = this.expandedCommit, filesElem = document.getElementById('cdvFiles'), filePath = file.newFilePath;
+		const expandedCommit = this.expandedCommit, filesElem = document.getElementById('cdvFilesView'), filePath = file.newFilePath;
 		if (expandedCommit === null || expandedCommit.fileTree === null || filesElem === null) return;
 
 		if (fileWasViewed) {
@@ -2930,7 +3372,7 @@ class GitGraphView {
 	}
 
 	private changeFileViewType(type: GG.FileViewType) {
-		const expandedCommit = this.expandedCommit, filesElem = document.getElementById('cdvFiles');
+		const expandedCommit = this.expandedCommit, filesElem = document.getElementById('cdvFilesView');
 		if (expandedCommit === null || expandedCommit.fileTree === null || expandedCommit.fileChanges === null || filesElem === null) return;
 		GitGraphView.closeCdvContextMenuIfOpen(expandedCommit);
 		this.setFileViewType(type);
@@ -3252,7 +3694,7 @@ class GitGraphView {
 	}
 
 	private saveAndRenderCodeReview(codeReview: GG.CodeReview | null) {
-		let filesElem = document.getElementById('cdvFiles');
+		let filesElem = document.getElementById('cdvFilesView');
 		if (this.expandedCommit === null || this.expandedCommit.fileTree === null || filesElem === null) return;
 
 		this.expandedCommit.codeReview = codeReview;
@@ -3377,6 +3819,12 @@ window.addEventListener('load', () => {
 			case 'dropCommit':
 				refreshOrDisplayError(msg.error, 'Unable to Drop Commit');
 				break;
+			case 'dropCommits':
+				refreshOrDisplayError(msg.error, 'Unable to Drop Commits');
+				break;
+			case 'editCommitMessage':
+				refreshOrDisplayError(msg.error, 'Unable to Edit Commit Message');
+				break;
 			case 'dropStash':
 				refreshOrDisplayError(msg.error, 'Unable to Drop Stash');
 				break;
@@ -3477,6 +3925,12 @@ window.addEventListener('load', () => {
 				break;
 			case 'revertCommit':
 				refreshOrDisplayError(msg.error, 'Unable to Revert Commit');
+				break;
+			case 'undoLastCommit':
+				refreshOrDisplayError(msg.error, 'Unable to Reset Last Commit');
+				break;
+			case 'squashCommits':
+				refreshOrDisplayError(msg.error, 'Unable to Squash Commits');
 				break;
 			case 'setGlobalViewState':
 				finishOrDisplayError(msg.error, 'Unable to save the Global View State');
@@ -3864,6 +4318,12 @@ function getCommitOrdering(repoValue: GG.RepoCommitOrdering): GG.CommitOrdering 
 function getShowRemoteBranches(repoValue: GG.BooleanOverride) {
 	return repoValue === GG.BooleanOverride.Default
 		? initialState.config.showRemoteBranches
+		: repoValue === GG.BooleanOverride.Enabled;
+}
+
+function getSimplifyByDecoration(repoValue: GG.BooleanOverride) {
+	return repoValue === GG.BooleanOverride.Default
+		? initialState.config.simplifyByDecoration
 		: repoValue === GG.BooleanOverride.Enabled;
 }
 

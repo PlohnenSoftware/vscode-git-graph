@@ -12,6 +12,12 @@ Solve Git Graph issues and keep up with latest VSCode
 
 ![Additions](https://github.com/git-hub-tig/vscode-git-graph/raw/master/resources/demo.gif)
 
+## How to Install
+
+1. Download the latest release from https://github.com/hansu/vscode-git-graph/releases (download the .vsix file in the "Assets" section).
+
+2. Run the VS-Code command "Extensions: Install from VSIX..."
+
 ## Features
 
 * Git Graph View:
@@ -82,6 +88,7 @@ Detailed information of all Git Graph settings is available [here](https://githu
 A summary of the Git Graph extension settings are:
 * **Commit Details View**:
     * **Auto Center**: Automatically center the Commit Details View when it is opened.
+    * **Auto Scroll**: Automatically scroll the view to show the commit when opening the Commit Details View.
     * **File View**:
         * **File Tree**:
             * **Compact Folders**: Render the File Tree in the Commit Details View in a compacted form, such that folders with a single child folder are compressed into a single combined folder element.
@@ -105,6 +112,7 @@ A summary of the Git Graph extension settings are:
 * **Integrated Terminal Shell**: Specifies the path and filename of the Shell executable to be used by the Visual Studio Code Integrated Terminal, when it is opened by Git Graph.
 * **Keyboard Shortcut > \***: Configures the keybindings used for all keyboard shortcuts in the Git Graph View.
 * **Markdown**: Parse and render a frequently used subset of inline Markdown formatting rules in commit messages and tag details (bold, italics, bold & italics, and inline code blocks).
+* **Max Depth Of Repo Search**: Specifies the maximum depth of subfolders to search when discovering repositories in the workspace.
 * **Max Depth Of Repo Search**: Specifies the maximum depth of subfolders to search when discovering repositories in the workspace.
 * **Open New Tab Editor Group**: Specifies the Editor Group where Git Graph should open new tabs, when performing the following actions from the Git Graph View: Viewing the Visual Studio Code Diff View, Opening a File, Viewing a File at a Specific Revision.
 * **Open to the Repo of the Active Text Editor Document**: Open the Git Graph View to the repository containing the active Text Editor document.
@@ -146,6 +154,7 @@ A summary of the Git Graph extension settings are:
 * **Show Status Bar Item**: Show a Status Bar Item that opens the Git Graph View when clicked.
 * **Source Code Provider Integration Location**: Specifies where the "View Git Graph" action appears on the title of SCM Providers.
 * **Tab Icon Colour Theme**: Specifies the colour theme of the icon displayed on the Git Graph tab.
+* **ToolbarButtonVisibility** : Configure the visibility of toolbar items. Currently supported: `{"Remotes": true, "Simplify": true}`
 
 This extension consumes the following settings:
 

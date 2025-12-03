@@ -13,6 +13,7 @@ class GitGraphView {
 	private avatars: AvatarImageCollection = {};
 	private currentBranches: string[] | null = null;
 	private currentAuthors: string[] | null = null;
+	private currentTags: string[] | null = null;
 
 	private currentRepo!: string;
 	private currentRepoLoading: boolean = true;
@@ -48,6 +49,7 @@ class GitGraphView {
 	private readonly repoDropdown: Dropdown;
 	private readonly branchDropdown: Dropdown;
 	private readonly authorDropdown: Dropdown;
+	private readonly tagDropdown: Dropdown;
 
 	private readonly viewElem: HTMLElement;
 	private readonly controlsElem: HTMLElement;
@@ -101,6 +103,13 @@ class GitGraphView {
 			this.clearCommits();
 			this.requestLoadRepoInfoAndCommits(true, true);
 		}, this.config.singleAuthorSelect);
+		this.tagDropdown = new Dropdown('tagDropdown', false, true, 'Tags', (values) => {
+			this.currentTags = values;
+			this.maxCommits = this.config.initialLoadCommits;
+			this.saveState();
+			this.clearCommits();
+			this.requestLoadRepoInfoAndCommits(true, true);
+		});
 		this.showRemoteBranchesElem = <HTMLInputElement>document.getElementById('showRemoteBranchesCheckbox')!;
 		this.showRemoteBranchesElem.addEventListener('change', () => {
 			this.saveRepoStateValue(this.currentRepo, 'showRemoteBranchesV2', this.showRemoteBranchesElem.checked ? GG.BooleanOverride.Enabled : GG.BooleanOverride.Disabled);
@@ -137,6 +146,7 @@ class GitGraphView {
 			this.currentRepo = prevState.currentRepo;
 			this.currentBranches = prevState.currentBranches;
 			this.currentAuthors = prevState.currentAuthors;
+			this.currentTags = prevState.currentTags;
 			this.maxCommits = prevState.maxCommits;
 			this.expandedCommit = prevState.expandedCommit;
 			this.avatars = prevState.avatars;
@@ -239,7 +249,8 @@ class GitGraphView {
 		this.gitStashes = [];
 		this.gitTags = [];
 		this.currentBranches = null;
-		this.currentAuthors = [];
+		this.currentAuthors = null;
+		this.currentTags = null;
 		this.renderFetchButton();
 		this.closeCommitDetails(false);
 		this.settingsWidget.close();
@@ -269,7 +280,7 @@ class GitGraphView {
 			// Configure current branches
 			if (this.currentBranches !== null && !(this.currentBranches.length === 1 && this.currentBranches[0] === SHOW_ALL_BRANCHES)) {
 				// Filter any branches that are currently selected, but no longer exist
-				const globPatterns = this.config.customBranchGlobPatterns.map((pattern) => pattern.glob);
+				const globPatterns = this.config.customBranchGlobPatterns.map((pattern: { glob: string; }) => pattern.glob);
 				this.currentBranches = this.currentBranches.filter((branch) =>
 					this.gitBranches.includes(branch) || globPatterns.includes(branch) || branch === 'HEAD'
 				);
@@ -284,8 +295,8 @@ class GitGraphView {
 			this.currentBranches = [];
 			if (onRepoLoadShowSpecificBranches.length > 0) {
 				// Show specific branches if they exist in the repository
-				const globPatterns = this.config.customBranchGlobPatterns.map((pattern) => pattern.glob);
-				this.currentBranches.push(...onRepoLoadShowSpecificBranches.filter((branch) =>
+				const globPatterns = this.config.customBranchGlobPatterns.map((pattern: { glob: string; }) => pattern.glob);
+				this.currentBranches.push(...onRepoLoadShowSpecificBranches.filter((branch: string) =>
 					this.gitBranches.includes(branch) || globPatterns.includes(branch)
 				));
 			}
@@ -300,14 +311,21 @@ class GitGraphView {
 		filterCurrentBranches();
 
 		this.saveState();
+		if (this.currentAuthors === null || this.currentAuthors.length === 0) {
+			this.currentAuthors = [SHOW_ALL_BRANCHES];
+		}
+		if (this.currentTags === null || this.currentTags.length === 0) {
+			this.currentTags = [SHOW_ALL_BRANCHES];
+		}
 
 		// Set up branch dropdown options
 		this.branchDropdown.setOptions(this.getBranchOptions(true), this.currentBranches);
 		this.authorDropdown.setOptions(this.getAuthorOptions(), this.currentAuthors);
+		this.tagDropdown.setOptions(this.getTagOptions(), this.currentTags);
 
 		// Remove hidden remotes that no longer exist
 		let hiddenRemotes = this.gitRepos[this.currentRepo].hideRemotes;
-		let hideRemotes = hiddenRemotes.filter((hiddenRemote) => remotes.includes(hiddenRemote));
+		let hideRemotes = hiddenRemotes.filter((hiddenRemote: string) => remotes.includes(hiddenRemote));
 		if (hiddenRemotes.length !== hideRemotes.length) {
 			this.saveRepoStateValue(this.currentRepo, 'hideRemotes', hideRemotes);
 		}
@@ -336,12 +354,22 @@ class GitGraphView {
 		// This list of tags is just used to provide additional information in the dialogs. Tag information included in commits is used for all other purposes (e.g. rendering, context menus)
 		const tagsChanged = !arraysStrictlyEqual(this.gitTags, tags);
 		this.gitTags = tags;
+		if (tagsChanged) {
+			if (this.currentTags !== null && !(this.currentTags.length === 1 && this.currentTags[0] === SHOW_ALL_BRANCHES)) {
+				// Filter any tags that are currently selected, but no longer exist
+				this.currentTags = this.currentTags.filter((tag) => this.gitTags.includes(tag));
+			}
+			if (this.currentTags === null || this.currentTags.length === 0) {
+				this.currentTags = [SHOW_ALL_BRANCHES];
+			}
+			this.tagDropdown.setOptions(this.getTagOptions(), this.currentTags);
+		}
 
 		if (!this.currentRepoLoading && !this.currentRepoRefreshState.hard && this.moreCommitsAvailable === moreAvailable && this.onlyFollowFirstParent === onlyFollowFirstParent && this.commitHead === commitHead && commits.length > 0 && arraysEqual(this.commits, commits, (a, b) =>
 			a.hash === b.hash &&
 			arraysStrictlyEqual(a.heads, b.heads) &&
-			arraysEqual(a.tags, b.tags, (a, b) => a.name === b.name && a.annotated === b.annotated) &&
-			arraysEqual(a.remotes, b.remotes, (a, b) => a.name === b.name && a.remote === b.remote) &&
+			arraysEqual(a.tags, b.tags, (a: GG.GitCommitTag, b: GG.GitCommitTag) => a.name === b.name && a.annotated === b.annotated) &&
+			arraysEqual(a.remotes, b.remotes, (a: GG.GitCommitRemote, b: GG.GitCommitRemote) => a.name === b.name && a.remote === b.remote) &&
 			arraysStrictlyEqual(a.parents, b.parents) &&
 			((a.stash === null && b.stash === null) || (a.stash !== null && b.stash !== null && a.stash.selector === b.stash.selector))
 		) && this.renderedGitBranchHead === this.gitBranchHead) {
@@ -582,6 +610,14 @@ class GitGraphView {
 		}
 		return options;
 	}
+	public getTagOptions(): ReadonlyArray<DialogSelectInputOption> {
+		const options: DialogSelectInputOption[] = [];
+		options.push({ name: 'All', value: SHOW_ALL_BRANCHES });
+		for (let i = 0; i < this.gitTags.length; i++) {
+			options.push({ name: this.gitTags[i], value: this.gitTags[i] });
+		}
+		return options;
+	}
 	public getCommitId(hash: string) {
 		return typeof this.commitLookup[hash] === 'number' ? this.commitLookup[hash] : null;
 	}
@@ -667,6 +703,7 @@ class GitGraphView {
 			refreshId: ++this.currentRepoRefreshState.loadCommitsRefreshId,
 			branches: this.currentBranches === null || (this.currentBranches.length === 1 && this.currentBranches[0] === SHOW_ALL_BRANCHES) ? null : this.currentBranches,
 			authors: this.currentAuthors === null || (this.currentAuthors.length === 1 && this.currentAuthors[0] === SHOW_ALL_BRANCHES) ? null : this.currentAuthors,
+			tags: this.currentTags === null || (this.currentTags.length === 1 && this.currentTags[0] === SHOW_ALL_BRANCHES) ? null : this.currentTags,
 			maxCommits: this.maxCommits,
 			showTags: getShowTags(repoState.showTags),
 			showRemoteBranches: getShowRemoteBranches(repoState.showRemoteBranchesV2),
@@ -782,6 +819,7 @@ class GitGraphView {
 			avatars: this.avatars,
 			currentBranches: this.currentBranches,
 			currentAuthors: this.currentAuthors,
+			currentTags: this.currentTags,
 			moreCommitsAvailable: this.moreCommitsAvailable,
 			maxCommits: this.maxCommits,
 			onlyFollowFirstParent: this.onlyFollowFirstParent,
@@ -1109,7 +1147,21 @@ class GitGraphView {
 
 		for (let i = 0; i < this.commits.length; i++) {
 			let commit = this.commits[i];
-			let message = '<span class="text">' + textFormatter.format(commit.message) + '</span>';
+			let subject = commit.message;
+			let body = '';
+
+			let splitMessage = commit.message.split('\n\n');
+
+			if (splitMessage.length > 1) {
+				subject = splitMessage[0];
+				splitMessage.shift();
+				body = splitMessage.join('\n\n');
+			}
+
+			let message = '<span class="text">' + textFormatter.format(subject) + '</span>';
+			if (body !== '') {
+				message += '<span class="text commitbody">' + textFormatter.format(body) + '</span>';
+			}
 			let date = formatShortDate(commit.date);
 			let branchLabels = getBranchLabels(commit.heads, commit.remotes);
 			let refBranches = '', refTags = '', j, k, refName, remoteName, refActive, refHtml, branchCheckedOutAtCommit: string | null = null;
@@ -1489,7 +1541,7 @@ class GitGraphView {
 					const isMerge = commit.parents.length > 1;
 					let inputs: DialogInput[] = [];
 					if (isMerge) {
-						let options = commit.parents.map((hash, index) => ({
+						let options = commit.parents.map((hash: string, index: number) => ({
 							name: abbrevCommit(hash) + (typeof this.commitLookup[hash] === 'number' ? ': ' + this.commits[this.commitLookup[hash]].message : ''),
 							value: (index + 1).toString()
 						}));
@@ -1530,7 +1582,7 @@ class GitGraphView {
 				visible: visibility.revert,
 				onClick: () => {
 					if (commit.parents.length > 1) {
-						let options = commit.parents.map((hash, index) => ({
+						let options = commit.parents.map((hash: string, index: number) => ({
 							name: abbrevCommit(hash) + (typeof this.commitLookup[hash] === 'number' ? ': ' + this.commits[this.commitLookup[hash]].message : ''),
 							value: (index + 1).toString()
 						}));
@@ -1932,7 +1984,7 @@ class GitGraphView {
 				mostRecentTagsIndex = i;
 			}
 		}
-		const mostRecentTags = mostRecentTagsIndex > -1 ? this.commits[mostRecentTagsIndex].tags.map((tag) => '"' + tag.name + '"') : [];
+		const mostRecentTags = mostRecentTagsIndex > -1 ? this.commits[mostRecentTagsIndex].tags.map((tag: GG.GitCommitTag) => '"' + tag.name + '"') : [];
 
 		const inputs: DialogInput[] = [
 			{ type: DialogInputType.TextRef, name: 'Name', default: initialName, info: mostRecentTags.length > 0 ? 'The most recent tag' + (mostRecentTags.length > 1 ? 's' : '') + ' in the loaded commits ' + (mostRecentTags.length > 1 ? 'are' : 'is') + ' ' + formatCommaSeparatedList(mostRecentTags) + '.' : undefined },
@@ -2366,6 +2418,7 @@ class GitGraphView {
 				this.repoDropdown.refresh();
 				this.branchDropdown.refresh();
 				this.authorDropdown.refresh();
+				this.tagDropdown.refresh();
 			}
 			if (fmc !== findMatchColour) {
 				findMatchColour = fmc;
@@ -2380,7 +2433,9 @@ class GitGraphView {
 	}
 
 	private observeViewScroll() {
-		let active = this.viewElem.scrollTop > 0, timeout: NodeJS.Timeout | null = null;
+		let active = this.viewElem.scrollTop > 0, timeout: number | null = null;
+			if (timeout !== null) window.clearTimeout(timeout);
+			timeout = window.setTimeout(() => {
 		this.viewElem.addEventListener('scroll', () => {
 			const scrollTop = this.viewElem.scrollTop;
 			if (active !== scrollTop > 0) {
@@ -2396,7 +2451,7 @@ class GitGraphView {
 			}
 
 			if (timeout !== null) clearTimeout(timeout);
-			timeout = setTimeout(() => {
+			timeout = window.setTimeout(() => {
 				this.scrollTop = scrollTop;
 				this.saveState();
 				timeout = null;
@@ -2496,30 +2551,30 @@ class GitGraphView {
 		});
 	}
 
-	private observeUrls() {
-		const followInternalLink = (e: MouseEvent) => {
-			if (e.target !== null && isInternalUrlElem(<Element>e.target)) {
-				const value = unescapeHtml((<HTMLElement>e.target).dataset.value!);
-				switch ((<HTMLElement>e.target).dataset.type!) {
-					case 'commit':
-						if (typeof this.commitLookup[value] === 'number' && (this.expandedCommit === null || this.expandedCommit.commitHash !== value || this.expandedCommit.compareWithHash !== null)) {
-							const elem = findCommitElemWithId(getCommitElems(), this.commitLookup[value]);
-							if (elem !== null) this.loadCommitDetails(elem);
-						}
-						break;
+	private observeViewScroll() {
+		let active = this.viewElem.scrollTop > 0, timeout: number | null = null;
+		this.viewElem.addEventListener('scroll', () => {
+			const scrollTop = this.viewElem.scrollTop;
+			if (active !== scrollTop > 0) {
+				active = scrollTop > 0;
+			}
+
+			if (this.config.loadMoreCommitsAutomatically && this.moreCommitsAvailable && !this.currentRepoRefreshState.inProgress) {
+				const viewHeight = this.viewElem.clientHeight, contentHeight = this.viewElem.scrollHeight;
+				if (scrollTop > 0 && viewHeight > 0 && contentHeight > 0 && (scrollTop + viewHeight) >= contentHeight - 25) {
+					// If the user has scrolled such that the bottom of the visible view is within 25px of the end of the content, load more commits.
+					this.loadMoreCommits();
 				}
 			}
-		};
 
-		document.body.addEventListener('click', followInternalLink);
-
-		document.body.addEventListener('contextmenu', (e: MouseEvent) => {
-			if (e.target === null) return;
-			const eventTarget = <Element>e.target;
-
-			const isExternalUrl = isExternalUrlElem(eventTarget), isInternalUrl = isInternalUrlElem(eventTarget);
-			if (isExternalUrl || isInternalUrl) {
-				const viewElem: HTMLElement | null = eventTarget.closest('#view');
+			if (timeout !== null) window.clearTimeout(timeout);
+			timeout = window.setTimeout(() => {
+				this.scrollTop = scrollTop;
+				this.saveState();
+				timeout = null;
+			}, 250);
+		});
+	}
 				let eventElem: HTMLElement | null;
 
 				let target: (ContextMenuTarget & CommitTarget) | RepoTarget, isInDialog = false;
@@ -3011,7 +3066,7 @@ class GitGraphView {
 					});
 					const commitDetails = expandedCommit.commitDetails!;
 					const parents = commitDetails.parents.length > 0
-						? commitDetails.parents.map((parent) => {
+						? commitDetails.parents.map((parent: string) => {
 							const escapedParent = escapeHtml(parent);
 							return typeof this.commitLookup[parent] === 'number'
 								? '<span class="' + CLASS_INTERNAL_URL + '" data-type="commit" data-value="' + escapedParent + '" tabindex="-1">' + escapedParent + '</span>'
@@ -4139,16 +4194,17 @@ function generateFileListHtml(folder: FileTreeFolder, gitFiles: ReadonlyArray<GG
 function generateFileTreeLeafHtml(name: string, leaf: FileTreeLeaf, gitFiles: ReadonlyArray<GG.GitFileChange>, lastViewedFile: string | null, fileContextMenuOpen: number, isUncommitted: boolean) {
 	let encodedName = encodeURIComponent(name), escapedName = escapeHtml(name);
 	if (leaf.type === 'file') {
-		const fileTreeFile = gitFiles[leaf.index];
+		const fileTreeFile: GG.GitFileChange = gitFiles[leaf.index];
+		const type = fileTreeFile.type;
 		const textFile = fileTreeFile.additions !== null && fileTreeFile.deletions !== null;
-		const diffPossible = fileTreeFile.type === GG.GitFileStatus.Untracked || textFile;
-		const changeTypeMessage = GIT_FILE_CHANGE_TYPES[fileTreeFile.type] + (fileTreeFile.type === GG.GitFileStatus.Renamed ? ' (' + escapeHtml(fileTreeFile.oldFilePath) + ' → ' + escapeHtml(fileTreeFile.newFilePath) + ')' : '');
-		return '<li data-pathseg="' + encodedName + '"><span class="fileTreeFileRecord' + (leaf.index === fileContextMenuOpen ? ' ' + CLASS_CONTEXT_MENU_ACTIVE : '') + '" data-index="' + leaf.index + '"><span class="fileTreeFile' + (diffPossible ? ' gitDiffPossible' : '') + (leaf.reviewed ? '' : ' ' + CLASS_PENDING_REVIEW) + '" title="' + (diffPossible ? 'Click to View Diff' : 'Unable to View Diff' + (fileTreeFile.type !== GG.GitFileStatus.Deleted ? ' (this is a binary file)' : '')) + ' • ' + changeTypeMessage + '"><span class="fileTreeFileIcon">' + SVG_ICONS.file + '</span><span class="gitFileName ' + fileTreeFile.type + '">' + escapedName + '</span></span>' +
-			(initialState.config.enhancedAccessibility ? '<span class="fileTreeFileType" title="' + changeTypeMessage + '">' + fileTreeFile.type + '</span>' : '') +
-			(fileTreeFile.type !== GG.GitFileStatus.Added && fileTreeFile.type !== GG.GitFileStatus.Untracked && fileTreeFile.type !== GG.GitFileStatus.Deleted && textFile ? '<span class="fileTreeFileAddDel">(<span class="fileTreeFileAdd" title="' + fileTreeFile.additions + ' addition' + (fileTreeFile.additions !== 1 ? 's' : '') + '">+' + fileTreeFile.additions + '</span>|<span class="fileTreeFileDel" title="' + fileTreeFile.deletions + ' deletion' + (fileTreeFile.deletions !== 1 ? 's' : '') + '">-' + fileTreeFile.deletions + '</span>)</span>' : '') +
+		const diffPossible = type === GG.GitFileStatus.Untracked || textFile;
+		const changeTypeMessage = GIT_FILE_CHANGE_TYPES[type] + (type === GG.GitFileStatus.Renamed ? ' (' + escapeHtml(fileTreeFile.oldFilePath) + ' → ' + escapeHtml(fileTreeFile.newFilePath) + ')' : '');
+		return '<li data-pathseg="' + encodedName + '"><span class="fileTreeFileRecord' + (leaf.index === fileContextMenuOpen ? ' ' + CLASS_CONTEXT_MENU_ACTIVE : '') + '" data-index="' + leaf.index + '"><span class="fileTreeFile' + (diffPossible ? ' gitDiffPossible' : '') + (leaf.reviewed ? '' : ' ' + CLASS_PENDING_REVIEW) + '" title="' + (diffPossible ? 'Click to View Diff' : 'Unable to View Diff' + (type !== GG.GitFileStatus.Deleted ? ' (this is a binary file)' : '')) + ' • ' + changeTypeMessage + '"><span class="fileTreeFileIcon">' + SVG_ICONS.file + '</span><span class="gitFileName ' + type + '">' + escapedName + '</span></span>' +
+			(initialState.config.enhancedAccessibility ? '<span class="fileTreeFileType" title="' + changeTypeMessage + '">' + type + '</span>' : '') +
+			(type !== GG.GitFileStatus.Added && type !== GG.GitFileStatus.Untracked && type !== GG.GitFileStatus.Deleted && textFile ? '<span class="fileTreeFileAddDel">(<span class="fileTreeFileAdd" title="' + fileTreeFile.additions + ' addition' + (fileTreeFile.additions !== 1 ? 's' : '') + '">+' + fileTreeFile.additions + '</span>|<span class="fileTreeFileDel" title="' + fileTreeFile.deletions + ' deletion' + (fileTreeFile.deletions !== 1 ? 's' : '') + '">-' + fileTreeFile.deletions + '</span>)</span>' : '') +
 			(fileTreeFile.newFilePath === lastViewedFile ? '<span id="cdvLastFileViewed" title="Last File Viewed">' + SVG_ICONS.eyeOpen + '</span>' : '') +
 			'<span class="copyGitFile fileTreeFileAction" title="Copy Absolute File Path to Clipboard">' + SVG_ICONS.copy + '</span>' +
-			(fileTreeFile.type !== GG.GitFileStatus.Deleted
+			(type !== GG.GitFileStatus.Deleted
 				? (diffPossible && !isUncommitted ? '<span class="viewGitFileAtRevision fileTreeFileAction" title="View File at this Revision">' + SVG_ICONS.commit + '</span>' : '') +
 				'<span class="openGitFile fileTreeFileAction" title="Open File">' + SVG_ICONS.openFile + '</span>'
 				: ''
@@ -4510,12 +4566,13 @@ function findCommitElemWithId(elems: HTMLCollectionOf<HTMLElement>, id: number |
 }
 
 function generateSignatureHtml(signature: GG.GitSignature) {
-	return '<span class="signatureInfo ' + signature.status + '" title="' + GIT_SIGNATURE_STATUS_DESCRIPTIONS[signature.status] + ':'
+	const status: GG.GitSignatureStatus = signature.status;
+	return '<span class="signatureInfo ' + status + '" title="' + GIT_SIGNATURE_STATUS_DESCRIPTIONS[status] + ':'
 		+ ' Signed by ' + escapeHtml(signature.signer !== '' ? signature.signer : '<Unknown>')
 		+ ' (GPG Key Id: ' + escapeHtml(signature.key !== '' ? signature.key : '<Unknown>') + ')">'
-		+ (signature.status === GG.GitSignatureStatus.GoodAndValid
+		+ (status === GG.GitSignatureStatus.GoodAndValid
 			? SVG_ICONS.passed
-			: signature.status === GG.GitSignatureStatus.Bad
+			: status === GG.GitSignatureStatus.Bad
 				? SVG_ICONS.failed
 				: SVG_ICONS.inconclusive)
 		+ '</span>';

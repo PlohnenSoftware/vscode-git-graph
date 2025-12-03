@@ -1,8 +1,11 @@
 {
 	"name": "git-graph-3",
 	"displayName": "Git Graph v3",
-	"version": "1.33.0",
+	"version": "1.34.0",
 	"publisher": "Gxl",
+	"engine": {
+		"node": "18.17.1"
+	},
 	"author": {
 		"name": "Gxl",
 		"email": "gxli@bupt.edu.cn"
@@ -27,7 +30,7 @@
 		"url": "https://github.com/git-hub-tig/vscode-git-graph/issues"
 	},
 	"qna": "https://github.com/git-hub-tig/vscode-git-graph/wiki/Support-Resources",
-	"license": "SEE LICENSE IN 'LICENSE'",
+	"license": "SEE LICENSE IN LICENSE",
 	"icon": "resources/icon.png",
 	"engines": {
 		"vscode": "^1.50.0",
@@ -37,7 +40,9 @@
 		"workspace"
 	],
 	"activationEvents": [
-		"*"
+		"onCommand:git-graph.view",
+		"onCommand:git-graph.version",
+		"workspaceContains:.git"
 	],
 	"main": "./out/extension.js",
 	"contributes": {
@@ -1641,6 +1646,7 @@
 		"@types/babel__traverse": "7.14.2",
 		"@types/jest": "^29.5.0",
 		"@types/node": "^22.0.0",
+		"@types/iconv-lite": "^0.0.1",
 		"@types/prettier": "<2.6.0",
 		"@types/vscode": "1.50.0",
 		"@typescript-eslint/eslint-plugin": "^8.20.0",

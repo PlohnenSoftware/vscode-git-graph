@@ -49,8 +49,8 @@ const SVG_ICONS = {
 	collapse: '<svg style="transform: rotate(-90deg);" width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd"  d="M14.207 1.707L13.5 1L7.49997 7L1.49997 1L0.792969 1.707L7.14597 8.061H7.85397L14.207 1.707ZM14.207 7.70688L13.5 6.99988L7.49997 12.9999L1.49997 6.99988L0.792969 7.70688L7.14597 14.0609H7.85397L14.207 7.70688Z"/></svg>'
 };
 
-const GIT_FILE_CHANGE_TYPES = { 'A': 'Added', 'M': 'Modified', 'D': 'Deleted', 'R': 'Renamed', 'U': 'Untracked' };
-const GIT_SIGNATURE_STATUS_DESCRIPTIONS = {
+const GIT_FILE_CHANGE_TYPES: Record<string, string> = { 'A': 'Added', 'M': 'Modified', 'D': 'Deleted', 'R': 'Renamed', 'U': 'Untracked' };
+const GIT_SIGNATURE_STATUS_DESCRIPTIONS: Record<string, string> = {
 	'G': 'Valid Signature',
 	'U': 'Good Signature with Unknown Validity',
 	'X': 'Good Signature that has Expired',

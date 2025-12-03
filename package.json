@@ -30,7 +30,8 @@
 	"license": "SEE LICENSE IN 'LICENSE'",
 	"icon": "resources/icon.png",
 	"engines": {
-		"vscode": "^1.38.0"
+		"vscode": "^1.50.0",
+		"node": ">=18.18.0"
 	},
 	"extensionKind": [
 		"workspace"
@@ -96,6 +97,16 @@
 				"title": "Open File",
 				"icon": "$(go-to-file)",
 				"enablement": "isInDiffEditor && resourceScheme == git-graph && git-graph:codiconsSupported"
+			},
+			{
+				"category": "Git Graph",
+				"command": "git-graph.viewInEditor",
+				"title": "View Git Graph in Editor"
+			},
+			{
+				"category": "Git Graph",
+				"command": "git-graph.viewInPanel",
+				"title": "View Git Graph in Panel"
 			}
 		],
 		"configuration": {
@@ -106,6 +117,11 @@
 					"type": "boolean",
 					"default": true,
 					"description": "Automatically center the Commit Details View when it is opened."
+				},
+				"git-graph.commitDetailsView.autoScroll": {
+					"type": "boolean",
+					"default": true,
+					"description": "Automatically scroll the view to show the commit when opening the Commit Details View."
 				},
 				"git-graph.commitDetailsView.fileView.fileTree.compactFolders": {
 					"type": "boolean",
@@ -153,6 +169,10 @@
 									"type": "boolean",
 									"title": "Rename Branch..."
 								},
+								"createBranch": {
+									"type": "boolean",
+									"title": "Create Branch..."
+								},
 								"delete": {
 									"type": "boolean",
 									"title": "Delete Branch..."
@@ -168,6 +188,10 @@
 								"push": {
 									"type": "boolean",
 									"title": "Push Branch..."
+								},
+								"pull": {
+									"type": "boolean",
+									"title": "Pull Branch..."
 								},
 								"viewIssue": {
 									"type": "boolean",
@@ -218,21 +242,25 @@
 									"type": "boolean",
 									"title": "Revert..."
 								},
+								"undo": {
+									"type": "boolean",
+									"title": "Reset Last Commit"
+								},
 								"drop": {
 									"type": "boolean",
 									"title": "Drop..."
 								},
 								"merge": {
 									"type": "boolean",
-									"title": "Merge into current branch..."
+									"title": "Merge into current Branch..."
 								},
 								"rebase": {
 									"type": "boolean",
-									"title": "Rebase current branch on this Commit..."
+									"title": "Rebase current Branch on this Commit..."
 								},
 								"reset": {
 									"type": "boolean",
-									"title": "Reset current branch to this Commit..."
+									"title": "Reset current Branch to this Commit..."
 								},
 								"copyHash": {
 									"type": "boolean",
@@ -307,6 +335,10 @@
 								"pull": {
 									"type": "boolean",
 									"title": "Pull into current branch..."
+								},
+								"createBranch": {
+									"type": "boolean",
+									"title": "Create Branch..."
 								},
 								"viewIssue": {
 									"type": "boolean",
@@ -542,6 +574,24 @@
 					},
 					"description": "An object specifying the default visibility of the Date, Author & Commit columns. Example: {\"Date\": true, \"Author\": true, \"Commit\": true}"
 				},
+				"git-graph.toolbarButtonVisibility": {
+					"type": "object",
+					"properties": {
+						"Remotes": {
+							"type": "boolean",
+							"title": "Visibility of the Remotes checkbox"
+						},
+						"Simplify": {
+							"type": "boolean",
+							"title": "Visibility of the Simplify checkbox"
+						}
+					},
+					"default": {
+						"Remotes": true,
+						"Simplify": true
+					},
+					"description": "An object specifying the default visibility of the items of the tool bar. Example: {\"Remotes\": true\", Simplify\": true}"
+				},
 				"git-graph.dialog.addTag.pushToRemote": {
 					"type": "boolean",
 					"default": false,
@@ -621,6 +671,11 @@
 					"default": true,
 					"description": "Default state of the \"Create a new commit even if fast-forward is possible\" checkbox."
 				},
+				"git-graph.dialog.merge.allowUnrelatedHistories": {
+					"type": "boolean",
+					"default": false,
+					"description": "Default state of the \"Allow unrelated histories\" checkbox."
+				},
 				"git-graph.dialog.merge.squashCommits": {
 					"type": "boolean",
 					"default": false,
@@ -670,12 +725,12 @@
 				"git-graph.dialog.rebase.ignoreDate": {
 					"type": "boolean",
 					"default": true,
-					"description": "Default state of the \"Ignore Date (non-interactive rebase only)\" checkbox."
+					"description": "Checkbox \"Ignore Date (non-interactive rebase only)\" active by default."
 				},
 				"git-graph.dialog.rebase.launchInteractiveRebase": {
 					"type": "boolean",
 					"default": false,
-					"description": "Default state of the \"Launch Interactive Rebase in new Terminal\" checkbox."
+					"description": "Checkbox \"Interactive Rebase (launch in new Terminal)\" active by default."
 				},
 				"git-graph.dialog.resetCurrentBranchToCommit.mode": {
 					"type": "string",
@@ -1067,6 +1122,16 @@
 					"default": false,
 					"markdownDescription": "Only follow the first parent of commits when discovering the commits to load in the Git Graph View. See [--first-parent](https://git-scm.com/docs/git-log#Documentation/git-log.txt---first-parent) to find out more about this setting. This can be overridden per repository in the Git Graph View's Repository Settings Widget."
 				},
+				"git-graph.repository.singleAuthorSelect": {
+					"type": "boolean",
+					"default": false,
+					"description": "Enables the selection of only a single author from the Authors dropdown. Multiple authors can be selected by 'Ctrl' (or 'Cmd' on macOS) + click."
+				},
+				"git-graph.repository.singleBranchSelect": {
+					"type": "boolean",
+					"default": false,
+					"description": "Enables the selection of only a single branch from the Branches dropdown. Multiple branches can be selected by 'Ctrl' (or 'Cmd' on macOS) + click."
+				},
 				"git-graph.repository.showCommitsOnlyReferencedByTags": {
 					"type": "boolean",
 					"default": true,
@@ -1076,6 +1141,11 @@
 					"type": "boolean",
 					"default": true,
 					"description": "Show Remote Branches in Git Graph by default. This can be overridden per repository from the Git Graph View's Control Bar."
+				},
+				"git-graph.repository.simplifyByDecoration": {
+					"type": "boolean",
+					"default": false,
+					"description": "Show branch topology by omitting commits that are not referenced by tags. This can be overridden per repository from the Git Graph View's Control Bar."
 				},
 				"git-graph.repository.showRemoteHeads": {
 					"type": "boolean",
@@ -1172,6 +1242,21 @@
 					],
 					"default": "colour",
 					"description": "Specifies the colour theme of the icon displayed on the Git Graph tab."
+				},
+				"git-graph.viewLocation": {
+					"type": "string",
+					"enum": [
+						"editor",
+						"panel",
+						"both"
+					],
+					"enumDescriptions": [
+						"Display Git Graph in the editor area (traditional view)",
+						"Display Git Graph in the panel area (bottom/side panel)",
+						"Allow both display modes (use specific commands to open in each location)"
+					],
+					"default": "editor",
+					"description": "Specifies where to display the Git Graph view by default."
 				},
 				"git-graph.autoCenterCommitDetailsView": {
 					"type": "boolean",
@@ -1514,6 +1599,24 @@
 					"group": "inline"
 				}
 			]
+		},
+		"viewsContainers": {
+			"panel": [
+				{
+					"id": "git-graph-panel",
+					"title": "Git Graph",
+					"icon": "$(git-branch)"
+				}
+			]
+		},
+		"views": {
+			"git-graph-panel": [
+				{
+					"type": "webview",
+					"id": "git-graph.panel",
+					"name": "Git Graph"
+				}
+			]
 		}
 	},
 	"scripts": {
@@ -1524,7 +1627,7 @@
 		"compile-src": "tsc -p ./src && node ./.vscode/package-src.js",
 		"compile-web": "tsc -p ./web && node ./.vscode/package-web.js",
 		"compile-web-debug": "tsc -p ./web && node ./.vscode/package-web.js debug",
-		"lint": "eslint -c .eslintrc.json --max-warnings 0 --ext .ts ./src ./tests ./web",
+		"lint": "eslint --max-warnings 0 ./src ./tests ./web",
 		"package": "vsce package",
 		"package-and-install": "npm run package && node ./.vscode/install-package.js",
 		"test": "jest --verbose",
@@ -1536,17 +1639,17 @@
 	"devDependencies": {
 		"@types/babel__core": "7.1.18",
 		"@types/babel__traverse": "7.14.2",
-		"@types/jest": "26.0.19",
-		"@types/node": "8.10.62",
+		"@types/jest": "^29.5.0",
+		"@types/node": "^22.0.0",
 		"@types/prettier": "<2.6.0",
-		"@types/vscode": "1.38.0",
-		"@typescript-eslint/eslint-plugin": "4.10.0",
-		"@typescript-eslint/parser": "4.10.0",
-		"@vscode/vsce": "^2.19.0",
-		"eslint": "7.15.0",
-		"jest": "26.6.3",
-		"ts-jest": "26.4.4",
-		"typescript": "4.0.2",
-		"uglify-js": "3.10.0"
+		"@types/vscode": "1.50.0",
+		"@typescript-eslint/eslint-plugin": "^8.20.0",
+		"@typescript-eslint/parser": "^8.20.0",
+		"@vscode/vsce": "^3.6.0",
+		"eslint": "^9.17.0",
+		"jest": "^29.7.0",
+		"ts-jest": "^29.2.0",
+		"typescript": "^5.7.0",
+		"uglify-js": "^3.19.0"
 	}
 }

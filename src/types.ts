@@ -218,9 +218,11 @@ export interface GitRepoState {
 	pullRequestConfig: PullRequestConfig | null;
 	showRemoteBranches: boolean;
 	showRemoteBranchesV2: BooleanOverride;
+	simplifyByDecoration: BooleanOverride;
 	showStashes: BooleanOverride;
 	showTags: BooleanOverride;
 	workspaceFolderIndex: number | null;
+	isCdvSummaryHidden: boolean;
 }
 
 
@@ -261,10 +263,14 @@ export interface GitGraphViewConfig {
 	readonly onRepoLoad: OnRepoLoadConfig;
 	readonly referenceLabels: ReferenceLabelsConfig;
 	readonly repoDropdownOrder: RepoDropdownOrder;
+	readonly singleAuthorSelect: boolean;
+	readonly singleBranchSelect: boolean;
 	readonly showRemoteBranches: boolean;
+	readonly simplifyByDecoration: boolean;
 	readonly showStashes: boolean;
 	readonly showTags: boolean;
 	readonly stickyHeader: boolean;
+	readonly toolbarButtonVisibility: ToolbarButtonVisibility;
 }
 
 export interface GitGraphViewGlobalState {
@@ -281,6 +287,7 @@ export interface GitGraphViewWorkspaceState {
 
 export interface CommitDetailsViewConfig {
 	readonly autoCenter: boolean;
+	readonly autoScroll: boolean;
 	readonly fileTreeCompactFolders: boolean;
 	readonly fileViewType: FileViewType;
 	readonly location: CommitDetailsViewLocation;
@@ -340,6 +347,7 @@ export const enum CommitDetailsViewLocation {
 	DockedToBottom
 }
 
+
 export const enum CommitOrdering {
 	Date = 'date',
 	AuthorDate = 'author-date',
@@ -354,6 +362,8 @@ export interface ContextMenuActionsVisibility {
 		readonly merge: boolean;
 		readonly rebase: boolean;
 		readonly push: boolean;
+		readonly pull: boolean;
+		readonly createBranch: boolean;
 		readonly viewIssue: boolean;
 		readonly createPullRequest: boolean;
 		readonly createArchive: boolean;
@@ -371,6 +381,8 @@ export interface ContextMenuActionsVisibility {
 		readonly merge: boolean;
 		readonly rebase: boolean;
 		readonly reset: boolean;
+		readonly undo: boolean;
+		readonly editMessage: boolean;
 		readonly copyHash: boolean;
 		readonly copySubject: boolean;
 	};
@@ -391,6 +403,7 @@ export interface ContextMenuActionsVisibility {
 		readonly fetch: boolean;
 		readonly merge: boolean;
 		readonly pull: boolean;
+		readonly createBranch: boolean;
 		readonly viewIssue: boolean;
 		readonly createPullRequest: boolean;
 		readonly createArchive: boolean;
@@ -458,6 +471,11 @@ export interface DefaultColumnVisibility {
 	readonly commit: boolean;
 }
 
+export interface ToolbarButtonVisibility {
+	readonly remotes: boolean;
+	readonly simplify: boolean;
+}
+
 export interface DialogDefaults {
 	readonly addTag: {
 		readonly pushToRemote: boolean,
@@ -489,6 +507,7 @@ export interface DialogDefaults {
 	readonly merge: {
 		readonly noCommit: boolean,
 		readonly noFastForward: boolean,
+		readonly allowUnrelatedHistories: boolean,
 		readonly squash: boolean
 	};
 	readonly popStash: {
@@ -825,6 +844,23 @@ export interface ResponseDropCommit extends ResponseWithErrorInfo {
 	readonly command: 'dropCommit';
 }
 
+export interface RequestDropCommits extends RepoRequest {
+	readonly command: 'dropCommits';
+	readonly commits: ReadonlyArray<string>;
+}
+export interface ResponseDropCommits extends ResponseWithErrorInfo {
+	readonly command: 'dropCommits';
+}
+
+export interface RequestSquashCommits extends RepoRequest {
+	readonly command: 'squashCommits';
+	readonly commits: ReadonlyArray<string>;
+	readonly commitMessage: string;
+}
+export interface ResponseSquashCommits extends ResponseWithErrorInfo {
+	readonly command: 'squashCommits';
+}
+
 export interface RequestDropStash extends RepoRequest {
 	readonly command: 'dropStash';
 	readonly selector: string;
@@ -911,6 +947,7 @@ export interface RequestLoadCommits extends RepoRequest {
 	readonly maxCommits: number;
 	readonly showTags: boolean;
 	readonly showRemoteBranches: boolean;
+	readonly simplifyByDecoration: boolean;
 	readonly includeCommitsMentionedByReflogs: boolean;
 	readonly onlyFollowFirstParent: boolean;
 	readonly commitOrdering: CommitOrdering;
@@ -942,6 +979,7 @@ export interface RequestLoadRepoInfo extends RepoRequest {
 	readonly command: 'loadRepoInfo';
 	readonly refreshId: number;
 	readonly showRemoteBranches: boolean;
+	readonly simplifyByDecoration: boolean;
 	readonly showStashes: boolean;
 	readonly hideRemotes: ReadonlyArray<string>;
 }
@@ -976,6 +1014,7 @@ export interface RequestMerge extends RepoRequest {
 	readonly obj: string;
 	readonly actionOn: MergeActionOn;
 	readonly createNewCommit: boolean;
+	readonly allowUnrelatedHistories: boolean;
 	readonly squash: boolean;
 	readonly noCommit: boolean;
 }
@@ -1152,6 +1191,22 @@ export interface ResponseRevertCommit extends ResponseWithErrorInfo {
 	readonly command: 'revertCommit';
 }
 
+export interface RequestUndoLastCommit extends RepoRequest {
+	readonly command: 'undoLastCommit';
+}
+export interface ResponseUndoLastCommit extends ResponseWithErrorInfo {
+	readonly command: 'undoLastCommit';
+}
+
+export interface RequestEditCommitMessage extends RepoRequest {
+	readonly command: 'editCommitMessage';
+	readonly commitHash: string;
+	readonly message: string;
+}
+export interface ResponseEditCommitMessage extends ResponseWithErrorInfo {
+	readonly command: 'editCommitMessage';
+}
+
 export interface RequestSetGlobalViewState extends BaseMessage {
 	readonly command: 'setGlobalViewState';
 	readonly state: GitGraphViewGlobalState;
@@ -1275,7 +1330,9 @@ export type RequestMessage =
 	| RequestDeleteTag
 	| RequestDeleteUserDetails
 	| RequestDropCommit
+	| RequestDropCommits
 	| RequestDropStash
+	| RequestEditCommitMessage
 	| RequestEditRemote
 	| RequestEditUserDetails
 	| RequestEndCodeReview
@@ -1305,8 +1362,10 @@ export type RequestMessage =
 	| RequestResetFileToRevision
 	| RequestResetToCommit
 	| RequestRevertCommit
+	| RequestUndoLastCommit
 	| RequestSetGlobalViewState
 	| RequestSetRepoState
+	| RequestSquashCommits
 	| RequestSetWorkspaceViewState
 	| RequestShowErrorDialog
 	| RequestStartCodeReview
@@ -1339,7 +1398,9 @@ export type ResponseMessage =
 	| ResponseDeleteTag
 	| ResponseDeleteUserDetails
 	| ResponseDropCommit
+	| ResponseDropCommits
 	| ResponseDropStash
+	| ResponseEditCommitMessage
 	| ResponseEditRemote
 	| ResponseEditUserDetails
 	| ResponseExportRepoConfig
@@ -1368,8 +1429,10 @@ export type ResponseMessage =
 	| ResponseResetFileToRevision
 	| ResponseResetToCommit
 	| ResponseRevertCommit
+	| ResponseUndoLastCommit
 	| ResponseSetGlobalViewState
 	| ResponseSetWorkspaceViewState
+	| ResponseSquashCommits
 	| ResponseStartCodeReview
 	| ResponseTagDetails
 	| ResponseUpdateCodeReview
